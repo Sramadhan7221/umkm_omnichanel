@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Sinkronisasi Stok | UMKM Omnichannel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="Stok terpusat dan sinkronisasi ke Shopee dan GrabFood." name="description" />
+
+    <link rel="shortcut icon" href="/static/images/favicon.ico">
+
+    <!-- Datatables css -->
+    <link href="/static/vendor/datatables.net-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-fixedheader-bs5/css/fixedHeader.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-buttons-bs5/css/buttons.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+
+    <!-- Theme Config Js -->
+    <script src="/static/js/config.js"></script>
+
+    <!-- App css (Techmin template, unmodified) -->
+    <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
+    <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+
+    <style>
+        .badge-channel-shopee { background-color: #ee4d2d; }
+        .badge-channel-grabfood { background-color: #00b14f; }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+
+        <!-- ========== Topbar ========== -->
+        <div class="navbar-custom">
+            <div class="topbar container-fluid">
+                <div class="d-flex align-items-center gap-1">
+                    <div class="logo-topbar">
+                        <a href="/order_inbox" class="logo-light">
+                            <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                        <a href="/order_inbox" class="logo-dark">
+                            <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                    </div>
+
+                    <button class="button-toggle-menu">
+                        <i class="mdi mdi-menu"></i>
+                    </button>
+
+                    <h4 class="page-title d-none d-sm-block">Sinkronisasi Stok</h4>
+                </div>
+
+                <ul class="topbar-menu d-flex align-items-center gap-3">
+                    <li>
+                        <span class="badge bg-info-subtle text-info">
+                            <i class="ri-flask-line align-middle"></i> Mode Demo &mdash; data dummy
+                        </span>
+                    </li>
+                    <li class="dropdown">
+                        <a class="nav-link dropdown-toggle arrow-none nav-user" data-bs-toggle="dropdown" href="#" role="button">
+                            <span class="account-user-avatar"><i class="ri-user-3-line fs-22"></i></span>
+                            <span class="d-lg-flex flex-column gap-1 d-none"><h5 class="my-0" id="topbar-user-email"></h5></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#" id="btn-logout" class="dropdown-item text-danger">
+                                <i class="ri-logout-box-line me-1"></i> Keluar
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <!-- ========== /Topbar ========== -->
+
+        <!-- ========== Left Sidebar ========== -->
+        <div class="leftside-menu">
+            <a href="/order_inbox" class="logo logo-light">
+                <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+            <a href="/order_inbox" class="logo logo-dark">
+                <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+
+            <div data-simplebar>
+                <ul class="side-nav">
+                    <li class="side-nav-title">UMKM Omnichannel</li>
+
+                    <li class="side-nav-item">
+                        <a href="/order_inbox" class="side-nav-link">
+                            <i class="ri-inbox-line"></i>
+                            <span> Kotak Masuk Pesanan</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
+                        <a href="/inventory" class="side-nav-link active">
+                            <i class="ri-store-2-line"></i>
+                            <span> Sinkronisasi Stok</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
+                        <a href="/financial" class="side-nav-link">
+                            <i class="ri-bar-chart-2-line"></i>
+                            <span> Laporan Keuangan</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
+                        <a href="/reconciliation" class="side-nav-link">
+                            <i class="ri-git-merge-line"></i>
+                            <span> Rekonsiliasi</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-title">Pengaturan</li>
+
+                    <li class="side-nav-item">
+                        <a href="/platforms" class="side-nav-link">
+                            <i class="ri-plug-line"></i>
+                            <span> Platform</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <!-- ========== /Left Sidebar ========== -->
+
+        <!-- ========== Page Content ========== -->
+        <div class="content-page">
+            <div class="content">
+                <div class="container-fluid">
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-title-box d-flex align-items-center justify-content-between">
+                                <h4 class="page-title">Sinkronisasi Stok</h4>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary" disabled title="Integrasi platform belum tersedia">
+                                        <i class="ri-refresh-line align-middle"></i> Sinkron Produk
+                                    </button>
+                                    <a href="/inventory/new" class="btn btn-primary">
+                                        <i class="ri-add-line align-middle"></i> Tambah Produk
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total SKU</p>
+                                    <h3 class="my-1" id="stat-total-sku">0</h3>
+                                    <p class="mb-0 text-muted"><span>Shopee + GrabFood</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Stok Menipis</p>
+                                    <h3 class="my-1" id="stat-low-stock">0</h3>
+                                    <p class="mb-0 text-muted"><span>&le; batas minimum</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Unit Stok</p>
+                                    <h3 class="my-1" id="stat-total-units">0</h3>
+                                    <p class="mb-0 text-muted"><span>Seluruh SKU</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Estimasi Nilai Stok</p>
+                                    <h3 class="my-1" id="stat-stock-value">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Stok &times; harga acuan</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Katalog Produk</h4>
+                                    <p class="text-muted mb-0">
+                                        Stok dikurangi otomatis saat ada pesanan baru dan didorong (push) ke
+                                        platform yang terhubung. Gunakan tombol <strong>Sesuaikan</strong> untuk
+                                        koreksi manual (mis. hasil stok opname).
+                                    </p>
+                                </div>
+                                <div class="card-body">
+                                    <table id="inventory-datatable" class="table table-striped dt-responsive nowrap w-100">
+                                        <thead>
+                                            <tr>
+                                                <th>SKU</th>
+                                                <th>Nama Produk</th>
+                                                <th>Platform Terhubung</th>
+                                                <th>Stok</th>
+                                                <th>Harga Acuan</th>
+                                                <th>Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear())</script> &copy; UMKM Omnichannel &mdash;
+                            Tampilan berbasis Techmin (Techzaa)
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+        <!-- ========== /Page Content ========== -->
+    </div>
+
+    <!-- Adjust Stock Modal -->
+    <div class="modal fade" id="adjust-stock-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sesuaikan Stok</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-2"><strong id="adjust-product-name"></strong> <span class="text-muted" id="adjust-product-sku"></span></p>
+                    <div class="mb-3">
+                        <label class="form-label">Stok Baru</label>
+                        <input type="number" class="form-control" id="adjust-quantity" min="0" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Catatan</label>
+                        <input type="text" class="form-control" id="adjust-note" placeholder="Mis. hasil stok opname" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-adjust">Simpan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stock History Modal -->
+    <div class="modal fade" id="history-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Riwayat Pergerakan Stok</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                </div>
+                <div class="modal-body" id="history-body">
+                    <div class="text-center text-muted py-4">Memuat...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor js -->
+    <script src="/static/js/vendor.min.js"></script>
+    <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
+
+    <!-- Datatables js -->
+    <script src="/static/vendor/datatables.net/js/jquery.dataTables.min.js"></script>
+    <script src="/static/vendor/datatables.net-bs5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/vendor/datatables.net-responsive/js/dataTables.responsive.min.js"></script>
+    <script src="/static/vendor/datatables.net-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+    <script src="/static/vendor/datatables.net-fixedheader/js/dataTables.fixedHeader.min.js"></script>
+    <script src="/static/vendor/datatables.net-buttons/js/dataTables.buttons.min.js"></script>
+    <script src="/static/vendor/datatables.net-buttons-bs5/js/buttons.bootstrap5.min.js"></script>
+
+    <!-- App js -->
+    <script src="/static/js/app.min.js"></script>
+
+    <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
+    <script src="/static/js/auth-common.js"></script>
+
+    <!-- Inventory logic -->
+    <script src="/static/js/inventory.js"></script>
+</body>
+
+</html>

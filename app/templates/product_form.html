@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8" />
+    <title>{{ "Edit Produk" if sku else "Tambah Produk" }} | UMKM Omnichannel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="shortcut icon" href="/static/images/favicon.ico">
+
+    <script src="/static/js/config.js"></script>
+
+    <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
+    <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+
+    <style>
+        .badge-channel-shopee { background-color: #ee4d2d; }
+        .badge-channel-grabfood { background-color: #00b14f; }
+        .badge-channel-tiktok_shop { background-color: #111827; }
+        .badge-channel-gofood { background-color: #00aa13; }
+        .photo-thumb {
+            width: 90px; height: 90px; object-fit: cover; border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+        .photo-thumb-wrap { position: relative; display: inline-block; margin: 4px; }
+        .photo-thumb-remove {
+            position: absolute; top: -6px; right: -6px; width: 20px; height: 20px;
+            border-radius: 50%; padding: 0; line-height: 1; font-size: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+
+        <div class="navbar-custom">
+            <div class="topbar container-fluid">
+                <div class="d-flex align-items-center gap-1">
+                    <div class="logo-topbar">
+                        <a href="/order_inbox" class="logo-light">
+                            <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                        <a href="/order_inbox" class="logo-dark">
+                            <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                    </div>
+                    <button class="button-toggle-menu"><i class="mdi mdi-menu"></i></button>
+                    <h4 class="page-title d-none d-sm-block">{{ "Edit Produk" if sku else "Tambah Produk" }}</h4>
+                </div>
+
+                <ul class="topbar-menu d-flex align-items-center gap-3">
+                    <li class="dropdown">
+                        <a class="nav-link dropdown-toggle arrow-none nav-user" data-bs-toggle="dropdown" href="#" role="button">
+                            <span class="account-user-avatar"><i class="ri-user-3-line fs-22"></i></span>
+                            <span class="d-lg-flex flex-column gap-1 d-none"><h5 class="my-0" id="topbar-user-email"></h5></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#" id="btn-logout" class="dropdown-item text-danger">
+                                <i class="ri-logout-box-line me-1"></i> Keluar
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="leftside-menu">
+            <a href="/order_inbox" class="logo logo-light">
+                <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+            <a href="/order_inbox" class="logo logo-dark">
+                <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+
+            <div data-simplebar>
+                <ul class="side-nav">
+                    <li class="side-nav-title">UMKM Omnichannel</li>
+                    <li class="side-nav-item"><a href="/order_inbox" class="side-nav-link"><i class="ri-inbox-line"></i><span> Kotak Masuk Pesanan</span></a></li>
+                    <li class="side-nav-item"><a href="/inventory" class="side-nav-link active"><i class="ri-store-2-line"></i><span> Sinkronisasi Stok</span></a></li>
+                    <li class="side-nav-item"><a href="/financial" class="side-nav-link"><i class="ri-bar-chart-2-line"></i><span> Laporan Keuangan</span></a></li>
+                    <li class="side-nav-item"><a href="/reconciliation" class="side-nav-link"><i class="ri-git-merge-line"></i><span> Rekonsiliasi</span></a></li>
+                    <li class="side-nav-title">Pengaturan</li>
+                    <li class="side-nav-item"><a href="/platforms" class="side-nav-link"><i class="ri-plug-line"></i><span> Platform</span></a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="content-page">
+            <div class="content">
+                <div class="container-fluid">
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-title-box d-flex align-items-center justify-content-between">
+                                <h4 class="page-title">{{ "Edit Produk" if sku else "Tambah Produk Baru" }}</h4>
+                                <a href="/inventory" class="btn btn-light"><i class="ri-arrow-left-line align-middle"></i> Kembali ke Katalog</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="form-error" class="alert alert-danger d-none mb-3" role="alert"></div>
+
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <div class="card">
+                                <div class="card-header"><h4 class="card-title">Informasi Produk</h4></div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">SKU</label>
+                                        <input type="text" class="form-control" id="f-sku" placeholder="Mis. SKU-BAJU-002" {{ "disabled" if sku else "" }} />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Nama Produk</label>
+                                        <input type="text" class="form-control" id="f-name" placeholder="Nama produk" />
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Deskripsi Produk</label>
+                                        <textarea class="form-control" id="f-description" rows="4" placeholder="Jelaskan produk Anda..."></textarea>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">Stok</label>
+                                            <input type="number" class="form-control" id="f-stock" min="0" value="0" />
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">Harga Dasar (Rp)</label>
+                                            <input type="number" class="form-control" id="f-price" min="0" value="0" />
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label class="form-label">PPN (%)</label>
+                                            <input type="number" class="form-control" id="f-ppn" min="0" step="0.1" value="11" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Foto Produk</h4>
+                                    <p class="text-muted mb-0">Foto utama dipakai sebagai gambar showcase di platform yang dipilih. Foto tambahan tampil sebagai galeri.</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Foto Utama</label>
+                                        <input type="file" class="form-control" id="f-primary-image" accept="image/*" />
+                                        <div id="primary-preview" class="mt-2"></div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Foto Tambahan (bisa pilih beberapa sekaligus)</label>
+                                        <input type="file" class="form-control" id="f-gallery-images" accept="image/*" multiple />
+                                        <div id="gallery-preview" class="mt-2"></div>
+                                    </div>
+                                    <div id="existing-images-section" class="d-none">
+                                        <label class="form-label">Foto Tersimpan</label>
+                                        <div id="existing-images" class="mb-2"></div>
+                                        <p class="text-muted"><small>Klik &times; pada foto untuk menghapusnya saat disimpan.</small></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4">
+                            <div class="card">
+                                <div class="card-header"><h4 class="card-title">Platform</h4></div>
+                                <div class="card-body">
+                                    <p class="text-muted mb-3">Pilih platform tempat produk ini dijual. Fee platform terisi otomatis dan tidak bisa diubah manual.</p>
+                                    <div id="platform-checkboxes"></div>
+                                </div>
+                            </div>
+
+                            <div class="card" id="note-card" style="display:none;">
+                                <div class="card-header"><h4 class="card-title">Catatan Perubahan</h4></div>
+                                <div class="card-body">
+                                    <textarea class="form-control" id="f-note" rows="2" placeholder="Opsional, mis. alasan perubahan"></textarea>
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary w-100" id="btn-save-product">
+                                <i class="ri-save-line align-middle"></i> {{ "Simpan Perubahan" if sku else "Simpan Produk" }}
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear())</script> &copy; UMKM Omnichannel &mdash;
+                            Tampilan berbasis Techmin (Techzaa)
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="/static/js/vendor.min.js"></script>
+    <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
+    <script src="/static/js/app.min.js"></script>
+
+    <script>
+        window.CURRENT_USER_EMAIL = {{ user_email | tojson }};
+        window.PRODUCT_FORM_SKU = {{ sku | tojson }};
+    </script>
+    <script src="/static/js/auth-common.js"></script>
+    <script src="/static/js/product_form.js"></script>
+</body>
+
+</html>

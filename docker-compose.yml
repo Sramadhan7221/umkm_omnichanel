@@ -1,0 +1,15 @@
+# Local-only convenience compose file — Railway does NOT use this, it builds
+# straight from the Dockerfile. This is just for testing the exact same
+# image locally before pushing.
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - sqlite-data:/app/data
+    environment:
+      PORT: 8000
+
+volumes:
+  sqlite-data:

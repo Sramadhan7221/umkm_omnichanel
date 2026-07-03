@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Detail Produk | UMKM Omnichannel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="shortcut icon" href="/static/images/favicon.ico">
+
+    <script src="/static/js/config.js"></script>
+
+    <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
+    <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+
+    <style>
+        .badge-channel-shopee { background-color: #ee4d2d; }
+        .badge-channel-grabfood { background-color: #00b14f; }
+        .badge-channel-tiktok_shop { background-color: #111827; }
+        .badge-channel-gofood { background-color: #00aa13; }
+        .product-main-image {
+            width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px;
+            background: #f1f3f5;
+        }
+        .product-thumb {
+            width: 64px; height: 64px; object-fit: cover; border-radius: 6px;
+            border: 2px solid transparent; cursor: pointer;
+        }
+        .product-thumb.active { border-color: var(--bs-primary, #556ee6); }
+        .no-image-placeholder {
+            width: 100%; aspect-ratio: 1 / 1; border-radius: 8px; background: #f1f3f5;
+            display: flex; align-items: center; justify-content: center; color: #adb5bd;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+
+        <div class="navbar-custom">
+            <div class="topbar container-fluid">
+                <div class="d-flex align-items-center gap-1">
+                    <div class="logo-topbar">
+                        <a href="/order_inbox" class="logo-light">
+                            <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                        <a href="/order_inbox" class="logo-dark">
+                            <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                    </div>
+                    <button class="button-toggle-menu"><i class="mdi mdi-menu"></i></button>
+                    <h4 class="page-title d-none d-sm-block">Detail Produk</h4>
+                </div>
+
+                <ul class="topbar-menu d-flex align-items-center gap-3">
+                    <li class="dropdown">
+                        <a class="nav-link dropdown-toggle arrow-none nav-user" data-bs-toggle="dropdown" href="#" role="button">
+                            <span class="account-user-avatar"><i class="ri-user-3-line fs-22"></i></span>
+                            <span class="d-lg-flex flex-column gap-1 d-none"><h5 class="my-0" id="topbar-user-email"></h5></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#" id="btn-logout" class="dropdown-item text-danger">
+                                <i class="ri-logout-box-line me-1"></i> Keluar
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="leftside-menu">
+            <a href="/order_inbox" class="logo logo-light">
+                <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+            <a href="/order_inbox" class="logo logo-dark">
+                <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+
+            <div data-simplebar>
+                <ul class="side-nav">
+                    <li class="side-nav-title">UMKM Omnichannel</li>
+                    <li class="side-nav-item"><a href="/order_inbox" class="side-nav-link"><i class="ri-inbox-line"></i><span> Kotak Masuk Pesanan</span></a></li>
+                    <li class="side-nav-item"><a href="/inventory" class="side-nav-link active"><i class="ri-store-2-line"></i><span> Sinkronisasi Stok</span></a></li>
+                    <li class="side-nav-item"><a href="/financial" class="side-nav-link"><i class="ri-bar-chart-2-line"></i><span> Laporan Keuangan</span></a></li>
+                    <li class="side-nav-item"><a href="/reconciliation" class="side-nav-link"><i class="ri-git-merge-line"></i><span> Rekonsiliasi</span></a></li>
+                    <li class="side-nav-title">Pengaturan</li>
+                    <li class="side-nav-item"><a href="/platforms" class="side-nav-link"><i class="ri-plug-line"></i><span> Platform</span></a></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="content-page">
+            <div class="content">
+                <div class="container-fluid">
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-title-box d-flex align-items-center justify-content-between">
+                                <h4 class="page-title">Detail Produk</h4>
+                                <a href="/inventory" class="btn btn-light"><i class="ri-arrow-left-line align-middle"></i> Kembali ke Katalog</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-5">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div id="main-image-wrap"></div>
+                                    <div id="thumbnail-strip" class="d-flex gap-2 mt-3 flex-wrap"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-7">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h3 class="mb-1" id="d-name">&nbsp;</h3>
+                                            <p class="text-muted mb-2" id="d-sku"></p>
+                                        </div>
+                                        <span class="badge bg-secondary" id="d-stock-badge">&nbsp;</span>
+                                    </div>
+
+                                    <h2 class="text-primary mb-1" id="d-price">Rp 0</h2>
+                                    <p class="text-muted mb-3" id="d-price-breakdown"></p>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Platform &amp; Fee</label>
+                                        <div id="d-platforms"></div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold">Deskripsi</label>
+                                        <p id="d-description" class="text-muted mb-0">&mdash;</p>
+                                    </div>
+
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        <a href="#" id="btn-edit-product" class="btn btn-primary">
+                                            <i class="ri-edit-line align-middle"></i> Edit Produk
+                                        </a>
+                                        <button class="btn btn-outline-secondary" id="btn-quick-adjust">
+                                            <i class="ri-settings-3-line align-middle"></i> Sesuaikan Stok
+                                        </button>
+                                        <button class="btn btn-outline-secondary" disabled title="Integrasi platform belum tersedia">
+                                            <i class="ri-refresh-line align-middle"></i> Sinkron Produk
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header"><h4 class="card-title">Riwayat Stok</h4></div>
+                                <div class="card-body">
+                                    <table class="table table-sm" id="movements-table">
+                                        <thead><tr><th>Waktu</th><th>Perubahan</th><th>Stok Akhir</th><th>Sumber</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header"><h4 class="card-title">Riwayat Perubahan Produk</h4></div>
+                                <div class="card-body">
+                                    <div id="audit-log-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear())</script> &copy; UMKM Omnichannel &mdash;
+                            Tampilan berbasis Techmin (Techzaa)
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Adjust Stock Modal -->
+    <div class="modal fade" id="adjust-stock-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sesuaikan Stok</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Stok Baru</label>
+                        <input type="number" class="form-control" id="adjust-quantity" min="0" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Catatan</label>
+                        <input type="text" class="form-control" id="adjust-note" placeholder="Mis. hasil stok opname" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-primary" id="btn-save-adjust">Simpan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/vendor.min.js"></script>
+    <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
+    <script src="/static/js/app.min.js"></script>
+
+    <script>
+        window.CURRENT_USER_EMAIL = {{ user_email | tojson }};
+        window.PRODUCT_DETAIL_SKU = {{ sku | tojson }};
+    </script>
+    <script src="/static/js/auth-common.js"></script>
+    <script src="/static/js/product_detail.js"></script>
+</body>
+
+</html>

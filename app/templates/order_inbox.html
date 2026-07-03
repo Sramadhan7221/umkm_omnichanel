@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Kotak Masuk Pesanan | UMKM Omnichannel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="Kotak masuk pesanan terpadu dari Shopee, TikTok Shop, GrabFood, dan GoFood." name="description" />
+
+    <link rel="shortcut icon" href="/static/images/favicon.ico">
+
+    <!-- Datatables css -->
+    <link href="/static/vendor/datatables.net-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-fixedheader-bs5/css/fixedHeader.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-buttons-bs5/css/buttons.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+
+    <!-- Theme Config Js -->
+    <script src="/static/js/config.js"></script>
+
+    <!-- App css (Techmin template, unmodified) -->
+    <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
+    <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+
+    <style>
+        .badge-channel-shopee { background-color: #ee4d2d; }
+        .badge-channel-grabfood { background-color: #00b14f; }
+        .badge-fulfillment { font-weight: 500; }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+
+        <!-- ========== Topbar ========== -->
+        <div class="navbar-custom">
+            <div class="topbar container-fluid">
+                <div class="d-flex align-items-center gap-1">
+                    <div class="logo-topbar">
+                        <a href="/order_inbox" class="logo-light">
+                            <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                        <a href="/order_inbox" class="logo-dark">
+                            <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                            <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+                        </a>
+                    </div>
+
+                    <button class="button-toggle-menu">
+                        <i class="mdi mdi-menu"></i>
+                    </button>
+
+                    <h4 class="page-title d-none d-sm-block">Kotak Masuk Pesanan</h4>
+                </div>
+
+                <ul class="topbar-menu d-flex align-items-center gap-3">
+                    <li>
+                        <span class="badge bg-info-subtle text-info">
+                            <i class="ri-flask-line align-middle"></i> Mode Demo &mdash; data dummy
+                        </span>
+                    </li>
+                    <li class="dropdown">
+                        <a class="nav-link dropdown-toggle arrow-none nav-user" data-bs-toggle="dropdown" href="#" role="button">
+                            <span class="account-user-avatar"><i class="ri-user-3-line fs-22"></i></span>
+                            <span class="d-lg-flex flex-column gap-1 d-none"><h5 class="my-0" id="topbar-user-email"></h5></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#" id="btn-logout" class="dropdown-item text-danger">
+                                <i class="ri-logout-box-line me-1"></i> Keluar
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <!-- ========== /Topbar ========== -->
+
+        <!-- ========== Left Sidebar ========== -->
+        <div class="leftside-menu">
+            <a href="/order_inbox" class="logo logo-light">
+                <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+            <a href="/order_inbox" class="logo logo-dark">
+                <span class="logo-lg"><img src="/static/images/logo-dark.png" alt="dark logo"></span>
+                <span class="logo-sm"><img src="/static/images/logo-sm.png" alt="small logo"></span>
+            </a>
+
+            <div data-simplebar>
+                <ul class="side-nav">
+                    <li class="side-nav-title">UMKM Omnichannel</li>
+
+                    <li class="side-nav-item">
+                        <a href="/order_inbox" class="side-nav-link active">
+                            <i class="ri-inbox-line"></i>
+                            <span> Kotak Masuk Pesanan</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
+                        <a href="/inventory" class="side-nav-link">
+                            <i class="ri-store-2-line"></i>
+                            <span> Sinkronisasi Stok</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
+                        <a href="/financial" class="side-nav-link">
+                            <i class="ri-bar-chart-2-line"></i>
+                            <span> Laporan Keuangan</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
+                        <a href="/reconciliation" class="side-nav-link">
+                            <i class="ri-git-merge-line"></i>
+                            <span> Rekonsiliasi</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-title">Pengaturan</li>
+
+                    <li class="side-nav-item">
+                        <a href="/platforms" class="side-nav-link">
+                            <i class="ri-plug-line"></i>
+                            <span> Platform</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <!-- ========== /Left Sidebar ========== -->
+
+        <!-- ========== Page Content ========== -->
+        <div class="content-page">
+            <div class="content">
+                <div class="container-fluid">
+
+                    <div id="sync-result"></div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="page-title-box d-flex align-items-center justify-content-between">
+                                <h4 class="page-title">Kotak Masuk Pesanan Terpadu</h4>
+                                <div>
+                                    <button id="btn-sync" class="btn btn-primary"
+                                        <i class="ri-refresh-line align-middle"></i> Sinkronkan Pesanan
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Pesanan</p>
+                                    <h3 class="my-1" id="stat-total">0</h3>
+                                    <p class="mb-0 text-muted"><span>Semua platform aktif</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Jumlah Kotor</p>
+                                    <h3 class="my-1" id="stat-gross">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Total dibayar pembeli</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Jumlah Bersih</p>
+                                    <h3 class="my-1" id="stat-net">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Perkiraan diterima penjual</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Biaya</p>
+                                    <h3 class="my-1" id="stat-fees">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Kotor &minus; Bersih</span></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Pesanan</h4>
+                                    <p class="text-muted mb-0">
+                                        Pesanan ternormalisasi dari <strong>MockShopeeAdapter</strong> dan
+                                        <strong>MockGrabFoodAdapter</strong>. Klik ikon detail pada baris untuk
+                                        melihat rincian item dan biaya.
+                                    </p>
+                                </div>
+                                <div class="card-body">
+                                    <table id="order-inbox-datatable" class="table table-striped dt-responsive nowrap w-100">
+                                        <thead>
+                                            <tr>
+                                                <th>Platform</th>
+                                                <th>Jenis Pemenuhan</th>
+                                                <th>Status</th>
+                                                <th>ID Pesanan Platform</th>
+                                                <th>Waktu Pesanan</th>
+                                                <th>Kotor</th>
+                                                <th>Bersih</th>
+                                                <th>Detail</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear())</script> &copy; UMKM Omnichannel &mdash;
+                            Tampilan berbasis Techmin (Techzaa)
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+        <!-- ========== /Page Content ========== -->
+    </div>
+
+    <!-- Order Detail Modal -->
+    <div class="modal fade" id="order-detail-modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detail Pesanan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+                </div>
+                <div class="modal-body" id="order-detail-body">
+                    <div class="text-center text-muted py-4">Memuat...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor js -->
+    <script src="/static/js/vendor.min.js"></script>
+    <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
+
+    <!-- Datatables js -->
+    <script src="/static/vendor/datatables.net/js/jquery.dataTables.min.js"></script>
+    <script src="/static/vendor/datatables.net-bs5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/vendor/datatables.net-responsive/js/dataTables.responsive.min.js"></script>
+    <script src="/static/vendor/datatables.net-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
+    <script src="/static/vendor/datatables.net-fixedheader/js/dataTables.fixedHeader.min.js"></script>
+    <script src="/static/vendor/datatables.net-buttons/js/dataTables.buttons.min.js"></script>
+    <script src="/static/vendor/datatables.net-buttons-bs5/js/buttons.bootstrap5.min.js"></script>
+
+    <!-- App js -->
+    <script src="/static/js/app.min.js"></script>
+
+    <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
+    <script src="/static/js/auth-common.js"></script>
+
+    <!-- Order Inbox logic (calls FastAPI /api/* via fetch) -->
+    <script src="/static/js/order_inbox.js"></script>
+</body>
+
+</html>
