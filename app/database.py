@@ -41,6 +41,7 @@ _COLUMN_MIGRATIONS = [
     ("platform", "fee_rate", "FLOAT DEFAULT 0"),
     ("product", "description", "TEXT DEFAULT ''"),
     ("product", "ppn_rate", "FLOAT DEFAULT 11.0"),
+    ("omni_order", "outlet_id", "VARCHAR"),
 ]
 
 

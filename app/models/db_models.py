@@ -61,6 +61,11 @@ class OmniOrder(Base):
     gross_amount = Column(Float, default=0)
     net_amount = Column(Float, default=0)
 
+    # Nullable: existing/online orders never set this. Becomes required for
+    # Channel.OFFLINE_POS once Epic C adds that channel and enforces it in
+    # pos_service.py — not enforced here (Epic H only lays the foundation).
+    outlet_id = Column(String, ForeignKey("outlet.kode_outlet"), nullable=True)
+
     items = relationship("OmniOrderItem", back_populates="order", cascade="all, delete-orphan")
     fees = relationship("OmniOrderFee", back_populates="order", cascade="all, delete-orphan")
 
@@ -247,3 +252,21 @@ class Account(Base):
     parent_code = Column(String, ForeignKey("account.kode_akun"), nullable=True)
     is_header = Column(Boolean, default=False, nullable=False)
     is_outlet_scoped = Column(Boolean, default=False, nullable=False)
+
+
+# ---------------------------------------------------------------------------
+# Multi-Outlet (Epic H) — one row per physical store. Referenced by
+# OmniOrder.outlet_id (required for offline POS orders once Epic C exists)
+# and, once Epic B's JournalEntry lands, by journal rows that touch
+# is_outlet_scoped accounts (1111 Kas di Tangan) so cash can be tracked and
+# reported per outlet before being consolidated in the Neraca (Epic F).
+# ---------------------------------------------------------------------------
+
+class Outlet(Base):
+    __tablename__ = "outlet"
+
+    kode_outlet = Column(String, primary_key=True)
+    nama_outlet = Column(String, nullable=False)
+    alamat = Column(Text, default="")
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_time = Column(DateTime, default=datetime.utcnow)

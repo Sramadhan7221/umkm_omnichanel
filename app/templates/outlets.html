@@ -3,9 +3,9 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>Platform | UMKM Omnichannel</title>
+    <title>Outlet | UMKM Omnichannel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Kelola platform mana saja yang aktif untuk toko Anda." name="description" />
+    <meta content="Kelola outlet fisik toko Anda." name="description" />
 
     <link rel="shortcut icon" href="/static/images/favicon.ico">
 
@@ -13,13 +13,6 @@
 
     <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
     <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
-
-    <style>
-        .badge-channel-shopee { background-color: #ee4d2d; }
-        .badge-channel-grabfood { background-color: #00b14f; }
-        .badge-channel-tiktok_shop { background-color: #111827; }
-        .badge-channel-gofood { background-color: #00aa13; }
-    </style>
 </head>
 
 <body>
@@ -43,7 +36,7 @@
                         <i class="mdi mdi-menu"></i>
                     </button>
 
-                    <h4 class="page-title d-none d-sm-block">Platform</h4>
+                    <h4 class="page-title d-none d-sm-block">Outlet</h4>
                 </div>
 
                 <ul class="topbar-menu d-flex align-items-center gap-3">
@@ -107,14 +100,14 @@
                     <li class="side-nav-title">Pengaturan</li>
 
                     <li class="side-nav-item">
-                        <a href="/platforms" class="side-nav-link active">
+                        <a href="/platforms" class="side-nav-link">
                             <i class="ri-plug-line"></i>
                             <span> Platform</span>
                         </a>
                     </li>
 
                     <li class="side-nav-item">
-                        <a href="/outlets" class="side-nav-link">
+                        <a href="/outlets" class="side-nav-link active">
                             <i class="ri-building-4-line"></i>
                             <span> Outlet</span>
                         </a>
@@ -130,7 +123,10 @@
                     <div class="row">
                         <div class="col-12">
                             <div class="page-title-box d-flex align-items-center justify-content-between">
-                                <h4 class="page-title">Platform</h4>
+                                <h4 class="page-title">Outlet</h4>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-add-outlet">
+                                    <i class="ri-add-line me-1"></i> Tambah Outlet
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -139,14 +135,19 @@
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
-                                    <h4 class="card-title">Platform Terhubung</h4>
+                                    <h4 class="card-title">Outlet Toko Fisik</h4>
                                     <p class="text-muted mb-0">
-                                        Aktifkan platform yang benar-benar dipakai toko Anda. Platform yang
-                                        nonaktif tidak akan ikut menghasilkan pesanan baru saat sinkronisasi.
+                                        Tiap outlet fisik punya kas di tangan yang terpisah. Nota Kasir POS
+                                        (segera hadir) wajib memilih salah satu outlet aktif di sini sebelum
+                                        input transaksi.
                                     </p>
                                 </div>
                                 <div class="card-body">
-                                    <div id="platform-list" class="row g-3"></div>
+                                    <div id="outlet-list" class="row g-3"></div>
+                                    <p class="text-muted mb-0 mt-3">
+                                        <i class="ri-information-line me-1"></i>
+                                        Saldo kas per outlet akan tampil di sini setelah Journal Engine (Epic B) aktif.
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -168,13 +169,40 @@
         </div>
     </div>
 
+    <div class="modal fade" id="modal-add-outlet" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="form-add-outlet">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Tambah Outlet</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nama Outlet</label>
+                            <input type="text" class="form-control" id="input-nama-outlet" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Alamat</label>
+                            <textarea class="form-control" id="input-alamat-outlet" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-light" data-bs-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-primary">Simpan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/vendor.min.js"></script>
     <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
     <script src="/static/js/app.min.js"></script>
 
     <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
     <script src="/static/js/auth-common.js"></script>
-    <script src="/static/js/platforms.js"></script>
+    <script src="/static/js/outlets.js"></script>
 </body>
 
 </html>
