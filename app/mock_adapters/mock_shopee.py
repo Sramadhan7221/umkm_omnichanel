@@ -193,6 +193,10 @@ class MockShopeeAdapter(PlatformAdapter):
         # Real adapter would call Shopee's update_stock endpoint here.
         return SyncResult(success=True, message=f"[mock] shopee stock for {sku} set to {quantity}")
 
+    def push_price_update(self, sku: str, price: float, cogs_price: float) -> SyncResult:
+        # Real adapter would call Shopee's update_price endpoint here.
+        return SyncResult(success=True, message=f"[mock] shopee price for {sku} set to {price} (HPP {cogs_price})")
+
     def parse_webhook(self, payload: dict[str, Any]) -> CanonicalOrder:
         # Shopee webhook payloads wrap order_sn + status; for the mock we accept
         # a full raw_order shape directly for simplicity.

@@ -135,6 +135,8 @@
                 document.getElementById("f-description").value = p.description || "";
                 document.getElementById("f-stock").value = p.stock_qty;
                 document.getElementById("f-price").value = p.reference_price;
+                document.getElementById("f-cogs-price").value = p.cogs_price;
+                document.getElementById("f-unit-label").value = p.unit_label;
                 document.getElementById("f-ppn").value = p.ppn_rate;
 
                 existingImages = p.images || [];
@@ -151,6 +153,8 @@
         formData.append("description", document.getElementById("f-description").value.trim());
         formData.append("stock_qty", document.getElementById("f-stock").value || "0");
         formData.append("reference_price", document.getElementById("f-price").value || "0");
+        formData.append("cogs_price", document.getElementById("f-cogs-price").value || "0");
+        formData.append("unit_label", document.getElementById("f-unit-label").value.trim());
         formData.append("ppn_rate", document.getElementById("f-ppn").value || "11");
 
         var primaryFile = document.getElementById("f-primary-image").files[0];
@@ -190,6 +194,16 @@
         }
         if (!document.getElementById("f-name").value.trim()) {
             showError("Nama produk wajib diisi.");
+            btn.disabled = false;
+            return;
+        }
+        if (!formData.get("unit_label")) {
+            showError("Satuan wajib diisi.");
+            btn.disabled = false;
+            return;
+        }
+        if (!(Number(formData.get("cogs_price")) > 0)) {
+            showError("HPP wajib diisi.");
             btn.disabled = false;
             return;
         }

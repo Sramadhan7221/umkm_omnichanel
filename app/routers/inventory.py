@@ -100,6 +100,8 @@ def _serialize_product_full(p) -> dict:
         "name": p.name,
         "description": p.description or "",
         "reference_price": p.reference_price,
+        "cogs_price": p.cogs_price,
+        "unit_label": p.unit_label,
         "ppn_rate": p.ppn_rate,
         "stock_qty": p.stock_qty,
         "low_stock_threshold": p.low_stock_threshold,
@@ -127,6 +129,8 @@ def add_product(
     description: str = Form(""),
     stock_qty: int = Form(...),
     reference_price: float = Form(...),
+    cogs_price: float = Form(...),
+    unit_label: str = Form(...),
     ppn_rate: float = Form(11.0),
     channels: list[str] = Form([]),
     primary_image: UploadFile | None = File(None),
@@ -142,6 +146,8 @@ def add_product(
             description=description,
             stock_qty=stock_qty,
             reference_price=reference_price,
+            cogs_price=cogs_price,
+            unit_label=unit_label,
             ppn_rate=ppn_rate,
             channels=channels,
             primary_image=primary_image,
@@ -169,6 +175,8 @@ def edit_product(
     description: str | None = Form(None),
     stock_qty: int | None = Form(None),
     reference_price: float | None = Form(None),
+    cogs_price: float | None = Form(None),
+    unit_label: str | None = Form(None),
     ppn_rate: float | None = Form(None),
     remove_image_ids: str = Form("[]"),  # JSON-encoded list[int], sent as a single form field
     note: str = Form(""),
@@ -187,6 +195,10 @@ def edit_product(
         updates["stock_qty"] = stock_qty
     if reference_price is not None:
         updates["reference_price"] = reference_price
+    if cogs_price is not None:
+        updates["cogs_price"] = cogs_price
+    if unit_label is not None:
+        updates["unit_label"] = unit_label
     if ppn_rate is not None:
         updates["ppn_rate"] = ppn_rate
 

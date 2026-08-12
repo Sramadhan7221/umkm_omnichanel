@@ -133,6 +133,9 @@
                     "Harga dasar " + formatRupiah(p.reference_price) + " + PPN " + p.ppn_rate + "% (" +
                     formatRupiah(ppnAmount) + ") = <strong>" + formatRupiah(p.reference_price + ppnAmount) + "</strong>";
 
+                document.getElementById("d-hpp-unit").innerHTML =
+                    "HPP: <strong>" + formatRupiah(p.cogs_price) + "</strong> &middot; Satuan: <strong>" + p.unit_label + "</strong>";
+
                 document.getElementById("d-description").textContent = p.description || "Belum ada deskripsi.";
 
                 renderImages(p.images || []);

@@ -194,6 +194,10 @@ class MockGrabFoodAdapter(PlatformAdapter):
         # Real adapter would call GrabFood's menu/out-of-stock instruction endpoint here.
         return SyncResult(success=True, message=f"[mock] grabfood availability for {sku} set to {quantity}")
 
+    def push_price_update(self, sku: str, price: float, cogs_price: float) -> SyncResult:
+        # Real adapter would call GrabFood's menu price update endpoint here.
+        return SyncResult(success=True, message=f"[mock] grabfood price for {sku} set to {price} (HPP {cogs_price})")
+
     def parse_webhook(self, payload: dict[str, Any]) -> CanonicalOrder:
         # GrabFood's Push Order State Webhook wraps an Order object; for the
         # mock we accept the full raw_order shape directly for simplicity.

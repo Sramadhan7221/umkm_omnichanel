@@ -29,3 +29,6 @@ class MockGoFoodAdapter(MockGrabFoodAdapter):
 
     def push_stock_update(self, sku: str, quantity: int) -> SyncResult:
         return SyncResult(success=True, message=f"[mock] gofood availability for {sku} set to {quantity}")
+
+    def push_price_update(self, sku: str, price: float, cogs_price: float) -> SyncResult:
+        return SyncResult(success=True, message=f"[mock] gofood price for {sku} set to {price} (HPP {cogs_price})")

@@ -113,6 +113,12 @@ class Product(Base):
     description = Column(Text, default="")
     reference_price = Column(Float, default=0)  # harga dasar
     ppn_rate = Column(Float, default=11.0)       # persen PPN, default tarif standar 2026 (11%)
+    # HPP (Epic D) — owner-set cost of goods, single source of truth synced
+    # out to every platform and later consumed by Epic B's automatic COGS
+    # journal posting (5110 HPP Produk). Required at creation, so nullable
+    # is False; run_lightweight_migrations backfills existing rows to 0/"Pcs".
+    cogs_price = Column(Float, nullable=False, default=0)
+    unit_label = Column(String, nullable=False, default="Pcs")  # Satuan: Pcs/Botol/Cup/dst
     stock_qty = Column(Integer, default=0, nullable=False)
     low_stock_threshold = Column(Integer, default=10, nullable=False)
     updated_time = Column(DateTime, default=datetime.utcnow)

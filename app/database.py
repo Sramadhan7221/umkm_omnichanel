@@ -42,6 +42,8 @@ _COLUMN_MIGRATIONS = [
     ("product", "description", "TEXT DEFAULT ''"),
     ("product", "ppn_rate", "FLOAT DEFAULT 11.0"),
     ("omni_order", "outlet_id", "VARCHAR"),
+    ("product", "cogs_price", "FLOAT NOT NULL DEFAULT 0"),
+    ("product", "unit_label", "VARCHAR NOT NULL DEFAULT 'Pcs'"),
 ]
 
 

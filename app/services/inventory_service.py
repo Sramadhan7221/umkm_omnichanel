@@ -40,26 +40,33 @@ _TRACKED_FIELDS = {
     "name": "Nama Produk",
     "description": "Deskripsi",
     "reference_price": "Harga Dasar",
+    "cogs_price": "HPP (Harga Pokok)",
+    "unit_label": "Satuan",
     "ppn_rate": "PPN (%)",
     "stock_qty": "Stok",
 }
+
+# Fields whose change should trigger an outbound price sync (Epic D) to every
+# mapped platform, distinct from stock-triggered sync.
+_PRICE_FIELD_LABELS = {"Harga Dasar", "HPP (Harga Pokok)"}
 
 # Katalog awal demo. Setiap produk dipetakan ke platform SEJENIS: fashion ke
 # Shopee + TikTok Shop (sama-sama e-commerce/pengiriman), makanan ke
 # GrabFood + GoFood (sama-sama food delivery/ambil instan) — mendemokan
 # konsep "satu SKU bisa ke banyak platform" dari mapping table Fase 2, dan
 # memastikan TikTok Shop/GoFood punya produk begitu diaktifkan di menu
-# Platform.
+# Platform. HPP (Epic D) dipatok kasar di sekitar 55-65% dari harga jual —
+# angka demo, bukan hasil hitung biaya produksi riil.
 _INITIAL_CATALOG = [
-    # (sku, nama, harga_acuan, [channel, ...], stok_awal)
-    ("SKU-BAJU-001", "Kaos Polos Katun Combed", 75_000, ["Shopee", "TikTok Shop"], 50),
-    ("SKU-TAS-014", "Tas Selempang Kanvas", 120_000, ["Shopee", "TikTok Shop"], 50),
-    ("SKU-SPT-007", "Sepatu Sneakers Casual", 210_000, ["Shopee", "TikTok Shop"], 50),
-    ("SKU-AKS-022", "Gelang Kulit Handmade", 45_000, ["Shopee", "TikTok Shop"], 50),
-    ("MENU-NASI-01", "Nasi Goreng Spesial", 32_000, ["GrabFood", "GoFood"], 50),
-    ("MENU-AYAM-02", "Ayam Geprek Sambal Bawang", 28_000, ["GrabFood", "GoFood"], 50),
-    ("MENU-MIE-03", "Mie Ayam Bakso", 25_000, ["GrabFood", "GoFood"], 50),
-    ("MENU-MIN-04", "Es Teh Manis", 8_000, ["GrabFood", "GoFood"], 50),
+    # (sku, nama, harga_acuan, hpp, satuan, [channel, ...], stok_awal)
+    ("SKU-BAJU-001", "Kaos Polos Katun Combed", 75_000, 42_000, "Pcs", ["Shopee", "TikTok Shop"], 50),
+    ("SKU-TAS-014", "Tas Selempang Kanvas", 120_000, 68_000, "Pcs", ["Shopee", "TikTok Shop"], 50),
+    ("SKU-SPT-007", "Sepatu Sneakers Casual", 210_000, 125_000, "Pcs", ["Shopee", "TikTok Shop"], 50),
+    ("SKU-AKS-022", "Gelang Kulit Handmade", 45_000, 22_000, "Pcs", ["Shopee", "TikTok Shop"], 50),
+    ("MENU-NASI-01", "Nasi Goreng Spesial", 32_000, 18_000, "Porsi", ["GrabFood", "GoFood"], 50),
+    ("MENU-AYAM-02", "Ayam Geprek Sambal Bawang", 28_000, 16_000, "Porsi", ["GrabFood", "GoFood"], 50),
+    ("MENU-MIE-03", "Mie Ayam Bakso", 25_000, 14_000, "Porsi", ["GrabFood", "GoFood"], 50),
+    ("MENU-MIN-04", "Es Teh Manis", 8_000, 3_000, "Gelas", ["GrabFood", "GoFood"], 50),
 ]
 
 
@@ -68,11 +75,13 @@ def seed_products(db: Session) -> None:
     if db.query(Product).count() > 0:
         return
 
-    for sku, name, price, channels, initial_stock in _INITIAL_CATALOG:
+    for sku, name, price, cogs_price, unit_label, channels, initial_stock in _INITIAL_CATALOG:
         product = Product(
             sku=sku,
             name=name,
             reference_price=price,
+            cogs_price=cogs_price,
+            unit_label=unit_label,
             stock_qty=initial_stock,
             low_stock_threshold=10,
         )
@@ -109,6 +118,18 @@ def _push_stock_to_platforms(product: Product) -> None:
         # kegagalan push nyata sebaiknya masuk ke Sync Health Dashboard
         # (belum dibangun di iterasi ini).
         adapter.push_stock_update(mapping.platform_item_id, product.stock_qty)
+
+
+def _push_price_to_platforms(product: Product) -> None:
+    """Outbound price sync (Epic D) — Master Barang is the single source of
+    truth for selling price + HPP, pushed out on every create/edit so no
+    platform ever drifts to a different number. Same fire-and-forget
+    treatment as _push_stock_to_platforms: failures aren't blocked on here."""
+    for mapping in product.mappings:
+        adapter = _get_adapter(mapping.channel)
+        if adapter is None:
+            continue
+        adapter.push_price_update(mapping.platform_item_id, product.reference_price, product.cogs_price)
 
 
 def deduct_stock_for_order(db: Session, order: CanonicalOrder) -> None:
@@ -212,6 +233,8 @@ def create_product(
     description: str,
     stock_qty: int,
     reference_price: float,
+    cogs_price: float,
+    unit_label: str,
     ppn_rate: float,
     channels: list[str],
     primary_image=None,
@@ -225,6 +248,8 @@ def create_product(
         name=name,
         description=description,
         reference_price=reference_price,
+        cogs_price=cogs_price,
+        unit_label=unit_label,
         ppn_rate=ppn_rate,
         stock_qty=stock_qty,
         low_stock_threshold=10,
@@ -256,6 +281,7 @@ def create_product(
     db.commit()
     db.refresh(product)
     _push_stock_to_platforms(product)
+    _push_price_to_platforms(product)
     return product
 
 
@@ -286,7 +312,7 @@ def update_product(
             continue
         old_value = getattr(product, field)
         new_value = updates[field]
-        if field in ("reference_price", "ppn_rate"):
+        if field in ("reference_price", "cogs_price", "ppn_rate"):
             new_value = float(new_value)
         elif field == "stock_qty":
             new_value = int(new_value)
@@ -342,6 +368,9 @@ def update_product(
 
     if "Stok" in changed_fields:
         _push_stock_to_platforms(product)
+
+    if _PRICE_FIELD_LABELS & changed_fields.keys():
+        _push_price_to_platforms(product)
 
     return product
 

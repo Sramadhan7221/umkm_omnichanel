@@ -31,3 +31,6 @@ class MockTikTokShopAdapter(MockShopeeAdapter):
 
     def push_stock_update(self, sku: str, quantity: int) -> SyncResult:
         return SyncResult(success=True, message=f"[mock] tiktok shop stock for {sku} set to {quantity}")
+
+    def push_price_update(self, sku: str, price: float, cogs_price: float) -> SyncResult:
+        return SyncResult(success=True, message=f"[mock] tiktok shop price for {sku} set to {price} (HPP {cogs_price})")

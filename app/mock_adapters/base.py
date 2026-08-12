@@ -62,6 +62,13 @@ class PlatformAdapter(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def push_price_update(self, sku: str, price: float, cogs_price: float) -> SyncResult:
+        """Push a selling-price/HPP change from Master Barang (Epic D) out to
+        the platform. Master Barang is the single source of truth for price;
+        this is the outbound sync leg — never the other direction."""
+        raise NotImplementedError
+
+    @abstractmethod
     def parse_webhook(self, payload: dict[str, Any]) -> CanonicalOrder:
         """Translate a raw inbound webhook payload into a CanonicalOrder."""
         raise NotImplementedError
