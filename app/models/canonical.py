@@ -56,6 +56,19 @@ class FeeCategory(str, Enum):
     OTHER = "other"
 
 
+# Channel -> kode akun pendapatan (Bagian 4 PDF, Epic A). Dipakai Journal
+# Engine (Epic B) untuk menentukan akun kredit saat posting pendapatan;
+# belum dipakai oleh kode manapun di Epic A. Kode akun harus ada di
+# docs/chart_of_accounts.csv. GrabFood dan GoFood sama-sama masuk 4115
+# "Pendapatan Usaha - Food Delivery" karena keduanya food-delivery.
+CHANNEL_REVENUE_ACCOUNT: dict[Channel, str] = {
+    Channel.SHOPEE: "4111",
+    Channel.TIKTOK_SHOP: "4113",
+    Channel.GRABFOOD: "4115",
+    Channel.GOFOOD: "4115",
+}
+
+
 @dataclass
 class Fee:
     category: FeeCategory

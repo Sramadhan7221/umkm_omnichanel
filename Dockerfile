@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY docs ./docs
 
 # SQLite file lives here — mount a Railway volume at this path if you want
 # data to survive redeploys; otherwise the app auto-reseeds mock data on

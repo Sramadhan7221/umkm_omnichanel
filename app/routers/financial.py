@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.routers.auth import require_login_api
+from app.services.chart_of_accounts_service import list_accounts_grouped
 from app.services.financial_service import (
     add_expense,
     get_cash_flow,
@@ -53,6 +54,11 @@ def cash_flow(
 ):
     start_dt, end_dt = _resolve_period(start, end)
     return get_cash_flow(db, start_dt, end_dt)
+
+
+@router.get("/accounts")
+def accounts(db: Session = Depends(get_db)):
+    return list_accounts_grouped(db)
 
 
 @router.get("/expenses")

@@ -80,7 +80,7 @@ cd C:\Users\srama\Claude\Projects\umkm-apps\umkm_omni_web
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+.\venv\Scripts\activate
 ```
 
 4. Install dependencies:

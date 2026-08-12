@@ -226,3 +226,24 @@ class Settlement(Base):
     batch_ref = Column(String)
     settlement_date = Column(DateTime, nullable=False, index=True)
     created_time = Column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Chart of Accounts (Epic A) — the account table double-entry bookkeeping is
+# built on. Seeded from docs/chart_of_accounts.csv (source of truth: the
+# business owner's own SAK EMKM account list), not hardcoded here. Journal
+# posting (Epic B), multi-outlet cash (Epic H), and the balance sheet (Epic F)
+# all read this table; nothing else in Epic A writes to it besides the seed.
+# ---------------------------------------------------------------------------
+
+class Account(Base):
+    __tablename__ = "account"
+
+    kode_akun = Column(String, primary_key=True)
+    nama_akun = Column(String, nullable=False)
+    penjelasan_awam = Column(Text, default="")
+    kelompok_utama = Column(String, nullable=False)  # Aset|Kewajiban|Ekuitas|Pendapatan|Beban
+    saldo_normal = Column(String, default="")          # "Debet" | "Kredit" | "" untuk header
+    parent_code = Column(String, ForeignKey("account.kode_akun"), nullable=True)
+    is_header = Column(Boolean, default=False, nullable=False)
+    is_outlet_scoped = Column(Boolean, default=False, nullable=False)
