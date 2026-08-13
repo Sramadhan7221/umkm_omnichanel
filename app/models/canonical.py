@@ -68,6 +68,21 @@ CHANNEL_REVENUE_ACCOUNT: dict[Channel, str] = {
     Channel.GOFOOD: "4115",
 }
 
+# Channel -> kode akun piutang (Epic B). Same grouping as
+# CHANNEL_REVENUE_ACCOUNT: e-commerce channels share 1121 Piutang Penjualan
+# E-Commerce (matrix rules #1/#3/#7), food-delivery channels share 1123
+# Piutang Aplikasi Food Delivery (rules #12/#14). Used by the Journal Engine
+# to resolve which receivable account a fee deduction, settlement payout, or
+# refund reduces — including for GrabFood/GoFood fee/retur cases the 32-row
+# matrix only wrote a literal row for e-commerce (see journal_engine_service
+# docstring for the generalization this covers).
+CHANNEL_RECEIVABLE_ACCOUNT: dict[Channel, str] = {
+    Channel.SHOPEE: "1121",
+    Channel.TIKTOK_SHOP: "1121",
+    Channel.GRABFOOD: "1123",
+    Channel.GOFOOD: "1123",
+}
+
 
 @dataclass
 class Fee:

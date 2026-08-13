@@ -16,6 +16,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.db_models import Expense, OmniOrder
+from app.services.journal_engine_service import post_expense_journal
 
 
 def get_income_statement(db: Session, start: datetime, end: datetime) -> dict:
@@ -96,11 +97,18 @@ def get_cash_flow(db: Session, start: datetime, end: datetime) -> list[dict]:
     return rows
 
 
-def add_expense(db: Session, category: str, amount: float, note: str, expense_date: datetime) -> Expense:
-    expense = Expense(category=category, amount=amount, note=note, expense_date=expense_date)
+def add_expense(
+    db: Session, category: str, amount: float, note: str, expense_date: datetime,
+    rule_no: int, outlet_id: str | None = None,
+) -> Expense:
+    expense = Expense(
+        category=category, amount=amount, note=note, expense_date=expense_date,
+        rule_no=rule_no, outlet_id=outlet_id,
+    )
     db.add(expense)
     db.commit()
     db.refresh(expense)
+    post_expense_journal(db, expense)
     return expense
 
 

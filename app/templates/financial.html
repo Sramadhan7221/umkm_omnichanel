@@ -243,6 +243,14 @@
                                         <input type="text" class="form-control" id="expense-category" placeholder="Mis. Sewa, Kemasan, Iklan" />
                                     </div>
                                     <div class="mb-3">
+                                        <label class="form-label">Jenis Beban (aturan jurnal)</label>
+                                        <select class="form-select" id="expense-rule"></select>
+                                    </div>
+                                    <div class="mb-3 d-none" id="expense-outlet-wrapper">
+                                        <label class="form-label">Outlet (kas tunai)</label>
+                                        <select class="form-select" id="expense-outlet"></select>
+                                    </div>
+                                    <div class="mb-3">
                                         <label class="form-label">Jumlah (Rp)</label>
                                         <input type="number" class="form-control" id="expense-amount" min="0" />
                                     </div>
@@ -268,6 +276,28 @@
                                 <div class="card-body">
                                     <table class="table table-sm" id="expense-table">
                                         <thead><tr><th>Tanggal</th><th>Kategori</th><th class="text-end">Jumlah</th><th>Catatan</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Jurnal Transaksi (Otomatis)</h4>
+                                    <p class="text-muted mb-0">Baris debet/kredit yang diposting otomatis dari pesanan, pencairan settlement, dan biaya operasional.</p>
+                                </div>
+                                <div class="card-body">
+                                    <table id="journal-datatable" class="table table-striped dt-responsive nowrap w-100">
+                                        <thead>
+                                            <tr>
+                                                <th>No Jurnal</th><th>Tanggal</th><th>Sumber Dokumen</th>
+                                                <th>Debet</th><th>Kredit</th><th>Nominal</th><th>Keterangan</th><th>Status</th>
+                                            </tr>
+                                        </thead>
                                         <tbody></tbody>
                                     </table>
                                 </div>

@@ -9,6 +9,8 @@
 
     var API_BASE = "/api/financial";
     var cashflowTable = null;
+    var journalTable = null;
+    var OUTLET_RULE_NO = 31; // "Gaji/Upah Tunai" — the only expense rule crediting an outlet-scoped account (1111)
 
     function formatRupiah(amount) {
         var n = Number(amount || 0);
@@ -91,6 +93,76 @@
             });
     }
 
+    function loadJournal() {
+        var p = periodDates();
+        return fetch(API_BASE + "/journal?start=" + p.start + "&end=" + p.end)
+            .then(function (res) { return res.json(); })
+            .then(function (rows) {
+                var tableRows = rows.map(function (e) {
+                    return [
+                        e.no_jurnal, e.tanggal, e.sumber_dokumen,
+                        e.kode_debet + " - " + e.nama_akun_debet,
+                        e.kode_kredit + " - " + e.nama_akun_kredit,
+                        formatRupiah(e.nominal), e.keterangan, e.status,
+                    ];
+                });
+
+                if (journalTable) {
+                    journalTable.clear();
+                    journalTable.rows.add(tableRows);
+                    journalTable.draw();
+                } else {
+                    journalTable = $("#journal-datatable").DataTable({
+                        data: tableRows,
+                        columns: [
+                            { title: "No Jurnal" }, { title: "Tanggal" }, { title: "Sumber Dokumen" },
+                            { title: "Debet" }, { title: "Kredit" }, { title: "Nominal" },
+                            { title: "Keterangan" }, { title: "Status" },
+                        ],
+                        order: [[1, "desc"]],
+                        responsive: true,
+                        language: {
+                            search: "Cari:",
+                            lengthMenu: "Tampilkan _MENU_ data",
+                            info: "Menampilkan _START_ - _END_ dari _TOTAL_ data",
+                            infoEmpty: "Tidak ada data",
+                            zeroRecords: "Data tidak ditemukan",
+                            paginate: { first: "Pertama", last: "Terakhir", next: "Berikutnya", previous: "Sebelumnya" },
+                        },
+                    });
+                }
+            });
+    }
+
+    function loadExpenseRules() {
+        return fetch(API_BASE + "/expense-rules")
+            .then(function (res) { return res.json(); })
+            .then(function (rules) {
+                var select = document.getElementById("expense-rule");
+                select.innerHTML = rules.map(function (r) {
+                    return "<option value='" + r.no + "'>" + r.event_trigger + " (" +
+                        r.kode_debet + " / " + r.kode_kredit + ")</option>";
+                }).join("");
+                toggleOutletField();
+            });
+    }
+
+    function loadOutletOptions() {
+        return fetch("/api/outlets")
+            .then(function (res) { return res.json(); })
+            .then(function (outlets) {
+                var select = document.getElementById("expense-outlet");
+                select.innerHTML = outlets.map(function (o) {
+                    return "<option value='" + o.kode_outlet + "'>" + o.nama_outlet + "</option>";
+                }).join("");
+            });
+    }
+
+    function toggleOutletField() {
+        var ruleNo = parseInt(document.getElementById("expense-rule").value, 10);
+        document.getElementById("expense-outlet-wrapper").classList.toggle("d-none", ruleNo !== OUTLET_RULE_NO);
+    }
+
     function loadExpenses() {
         var p = periodDates();
         return fetch(API_BASE + "/expenses?start=" + p.start + "&end=" + p.end)
@@ -111,23 +183,33 @@
         loadIncomeStatement();
         loadCashFlow();
         loadExpenses();
+        loadJournal();
     }
 
     function addExpense() {
         var category = document.getElementById("expense-category").value.trim();
+        var ruleNo = parseInt(document.getElementById("expense-rule").value, 10);
         var amount = parseFloat(document.getElementById("expense-amount").value);
         var date = document.getElementById("expense-date").value || todayISO();
         var note = document.getElementById("expense-note").value;
+        var outletId = ruleNo === OUTLET_RULE_NO ? document.getElementById("expense-outlet").value : null;
 
-        if (!category || isNaN(amount) || amount <= 0) {
-            alert("Isi kategori dan jumlah biaya dengan benar.");
+        if (!category || isNaN(amount) || amount <= 0 || isNaN(ruleNo)) {
+            alert("Isi kategori, jenis beban, dan jumlah biaya dengan benar.");
+            return;
+        }
+        if (ruleNo === OUTLET_RULE_NO && !outletId) {
+            alert("Pilih outlet untuk biaya yang dibayar dari kas tunai.");
             return;
         }
 
         fetch(API_BASE + "/expenses", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ category: category, amount: amount, note: note, expense_date: date }),
+            body: JSON.stringify({
+                category: category, amount: amount, note: note, expense_date: date,
+                rule_no: ruleNo, outlet_id: outletId,
+            }),
         })
             .then(function (res) { return res.json(); })
             .then(function () {
@@ -142,9 +224,12 @@
         if (window.lucide) lucide.createIcons();
         document.getElementById("expense-date").value = todayISO();
 
+        loadExpenseRules();
+        loadOutletOptions();
         reloadAll();
 
         document.getElementById("period-select").addEventListener("change", reloadAll);
         document.getElementById("btn-add-expense").addEventListener("click", addExpense);
+        document.getElementById("expense-rule").addEventListener("change", toggleOutletField);
     });
 })();

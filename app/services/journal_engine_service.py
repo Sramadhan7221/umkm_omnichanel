@@ -1,0 +1,245 @@
+"""
+Journal Engine (Epic B) — turns existing transaction events (order
+completed/refunded, settlement payout, manual expense) into balanced
+double-entry JournalEntry rows, driven by TransactionMappingRule (seeded from
+docs/transaction_mapping_matrix.csv, the business owner's own 32-row
+"Matriks Transaction Mapping" — never hardcoded from memory here).
+
+Known gap in the source matrix, resolved per Product Owner's explicit choice:
+the 32 rows only write a literal row for e-commerce fee/retur cases (#4, #6,
+#19 name account 1121 / "Shopee/Tokopedia/TikTok" specifically) — GrabFood/
+GoFood's Logistik/Biaya Layanan/Subsidi Promo fees and refunds have no
+literal row. Per the PO's answer, these are posted anyway by generalizing
+the rule's *pattern* (same debit account, credit account resolved via
+CHANNEL_RECEIVABLE_ACCOUNT for that channel) rather than left unposted.
+`rule_no` is still recorded for traceability even when the credit account
+was computed rather than copied from that literal row.
+
+Every post_journal() call writes exactly one debit leg + one credit leg of
+the same nominal, so "total debet = total kredit" holds by construction for
+any batch of entries this module produces — there's no separate multi-line
+balance-reject path because the schema can't represent an unbalanced entry.
+"""
+
+from __future__ import annotations
+
+import csv
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+from sqlalchemy.orm import Session
+
+from app.models.canonical import CHANNEL_RECEIVABLE_ACCOUNT, CHANNEL_REVENUE_ACCOUNT, Channel
+from app.models.db_models import (
+    Account,
+    Expense,
+    JournalEntry,
+    OmniOrder,
+    Product,
+    Settlement,
+    TransactionMappingRule,
+)
+from app.services.order_service import CHANNEL_LABELS
+
+CSV_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "transaction_mapping_matrix.csv"
+
+_LABEL_TO_CHANNEL = {label: Channel(value) for value, label in CHANNEL_LABELS.items()}
+
+# Channel label -> rule no, for the revenue leg posted at order completion.
+_REVENUE_RULE_BY_CHANNEL_LABEL = {"Shopee": 1, "TikTok Shop": 3, "GrabFood": 12, "GoFood": 12}
+
+# Channel label -> rule no, for the bank-receipt leg posted at settlement.
+_SETTLEMENT_RULE_BY_CHANNEL_LABEL = {"Shopee": 7, "TikTok Shop": 7, "GrabFood": 14, "GoFood": 14}
+
+# Channel label -> rule no, for the retur leg posted on a refunded order.
+# Literal matrix row #19 only names e-commerce; generalized to food delivery
+# per the PO's answer (see module docstring), same rule_no kept for both.
+_RETUR_RULE_BY_CHANNEL_LABEL = {"Shopee": 19, "TikTok Shop": 19, "GrabFood": 19, "GoFood": 19}
+
+# OmniOrderFee.category label -> (debit account code, nearest rule no).
+# Komisi/Biaya Pembayaran/Biaya Layanan all fall under the "biaya layanan/
+# komisi admin platform" pattern (5212, rules #5 e-commerce / #13 food
+# delivery); Logistik is the "ongkir" pattern (5213, rule #6, generalized to
+# food delivery); Subsidi Promo is the "potongan penjualan" pattern (4211,
+# rule #4, generalized to food delivery). Categories with no data source
+# today (Iklan, Penalti, Lainnya) are intentionally absent — skipped, not
+# guessed.
+_FEE_DEBIT_ACCOUNT_AND_RULE = {
+    "Komisi": ("5212", 5),
+    "Biaya Pembayaran": ("5212", 5),
+    "Biaya Layanan": ("5212", 13),
+    "Logistik": ("5213", 6),
+    "Subsidi Promo": ("4211", 4),
+}
+
+_COGS_RULE_NO = 24
+
+
+def seed_mapping_rules(db: Session) -> None:
+    if db.query(TransactionMappingRule).count() > 0:
+        return
+    with open(CSV_PATH, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            db.add(TransactionMappingRule(
+                no=int(row["no"]),
+                kategori_transaksi=row["kategori_transaksi"],
+                event_trigger=row["event_trigger"],
+                platform=row["platform"],
+                kode_debet=row["kode_debet"],
+                nama_akun_debet=row["nama_akun_debet"],
+                kode_kredit=row["kode_kredit"],
+                nama_akun_kredit=row["nama_akun_kredit"],
+                trigger_dokumen=row["trigger_dokumen"],
+                aturan_keterangan=row["aturan_keterangan"],
+            ))
+    db.commit()
+
+
+def post_journal(
+    db: Session,
+    *,
+    kode_debet: str,
+    kode_kredit: str,
+    nominal: float,
+    tanggal: datetime,
+    sumber_dokumen: str,
+    keterangan: str,
+    rule_no: int | None = None,
+    status: str = "OTOMATIS",
+    outlet_id: str | None = None,
+    order_id: str | None = None,
+    settlement_id: str | None = None,
+    expense_id: int | None = None,
+) -> JournalEntry | None:
+    if nominal <= 0:
+        return None
+
+    akun_debet = db.get(Account, kode_debet)
+    akun_kredit = db.get(Account, kode_kredit)
+
+    entry = JournalEntry(
+        no_jurnal=f"JE-{uuid.uuid4().hex[:10].upper()}",
+        tanggal=tanggal,
+        kode_debet=kode_debet,
+        nama_akun_debet=akun_debet.nama_akun,
+        kode_kredit=kode_kredit,
+        nama_akun_kredit=akun_kredit.nama_akun,
+        nominal=nominal,
+        sumber_dokumen=sumber_dokumen,
+        keterangan=keterangan,
+        status=status,
+        outlet_id=outlet_id,
+        rule_no=rule_no,
+        order_id=order_id,
+        settlement_id=settlement_id,
+        expense_id=expense_id,
+    )
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
+def post_order_completed_journal(db: Session, order: OmniOrder) -> list[JournalEntry]:
+    channel_enum = _LABEL_TO_CHANNEL[order.channel]
+    receivable_account = CHANNEL_RECEIVABLE_ACCOUNT[channel_enum]
+    revenue_account = CHANNEL_REVENUE_ACCOUNT[channel_enum]
+    revenue_rule_no = _REVENUE_RULE_BY_CHANNEL_LABEL[order.channel]
+
+    entries = []
+    entries.append(post_journal(
+        db, kode_debet=receivable_account, kode_kredit=revenue_account, nominal=order.gross_amount,
+        tanggal=order.order_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
+        keterangan=f"Penjualan bruto {order.channel} pesanan selesai",
+        rule_no=revenue_rule_no, order_id=order.platform_order_id,
+    ))
+
+    for fee in order.fees:
+        mapping = _FEE_DEBIT_ACCOUNT_AND_RULE.get(fee.category)
+        if mapping is None:
+            continue  # no matching pattern in the 32-row matrix for this fee category — documented gap
+        debit_account, rule_no = mapping
+        entries.append(post_journal(
+            db, kode_debet=debit_account, kode_kredit=receivable_account, nominal=fee.amount,
+            tanggal=order.order_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
+            keterangan=f"{fee.category} ({fee.label}) - {order.channel}",
+            rule_no=rule_no, order_id=order.platform_order_id,
+        ))
+
+    cogs_total = 0.0
+    for item in order.items:
+        product = db.get(Product, item.sku)
+        if product is None:
+            continue  # SKU not in catalog — same skip-if-missing behavior as deduct_stock_for_order
+        cogs_total += item.quantity * product.cogs_price
+    entries.append(post_journal(
+        db, kode_debet="5110", kode_kredit="1131", nominal=cogs_total,
+        tanggal=order.order_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
+        keterangan=f"HPP pesanan {order.platform_order_id}",
+        rule_no=_COGS_RULE_NO, order_id=order.platform_order_id,
+    ))
+
+    return [e for e in entries if e is not None]
+
+
+def post_order_refunded_journal(db: Session, order: OmniOrder) -> list[JournalEntry]:
+    channel_enum = _LABEL_TO_CHANNEL[order.channel]
+    receivable_account = CHANNEL_RECEIVABLE_ACCOUNT[channel_enum]
+    rule_no = _RETUR_RULE_BY_CHANNEL_LABEL[order.channel]
+
+    entry = post_journal(
+        db, kode_debet="4212", kode_kredit=receivable_account, nominal=order.gross_amount,
+        tanggal=order.updated_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
+        keterangan=f"Retur/pembatalan pesanan {order.channel}",
+        rule_no=rule_no, order_id=order.platform_order_id,
+    )
+    return [entry] if entry is not None else []
+
+
+def post_settlement_journal(db: Session, settlement: Settlement) -> JournalEntry | None:
+    rule_no = _SETTLEMENT_RULE_BY_CHANNEL_LABEL.get(settlement.channel)
+    if rule_no is None:
+        return None
+    rule = db.get(TransactionMappingRule, rule_no)
+
+    return post_journal(
+        db, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit, nominal=settlement.payout_amount,
+        tanggal=settlement.settlement_date, sumber_dokumen=f"Settlement {settlement.settlement_id}",
+        keterangan=f"Pencairan dana {settlement.channel} ke bank",
+        rule_no=rule_no, settlement_id=settlement.settlement_id,
+    )
+
+
+def post_expense_journal(db: Session, expense: Expense) -> JournalEntry | None:
+    rule = db.get(TransactionMappingRule, expense.rule_no)
+    return post_journal(
+        db, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit, nominal=expense.amount,
+        tanggal=expense.expense_date, sumber_dokumen=f"Biaya #{expense.id}",
+        keterangan=expense.note or expense.category,
+        rule_no=expense.rule_no, status="MANUAL", outlet_id=expense.outlet_id, expense_id=expense.id,
+    )
+
+
+def list_journal_entries(db: Session, start: datetime, end: datetime) -> list[JournalEntry]:
+    return (
+        db.query(JournalEntry)
+        .filter(JournalEntry.tanggal >= start, JournalEntry.tanggal <= end)
+        .order_by(JournalEntry.tanggal.desc())
+        .all()
+    )
+
+
+# The only 4 rules an Expense can post through (see Expense.rule_no docstring
+# in db_models.py) — used to populate the "Jenis Beban" dropdown from data
+# instead of hardcoding labels/accounts in the template.
+EXPENSE_RULE_NOS = [26, 30, 31, 32]
+
+
+def list_expense_rules(db: Session) -> list[TransactionMappingRule]:
+    return (
+        db.query(TransactionMappingRule)
+        .filter(TransactionMappingRule.no.in_(EXPENSE_RULE_NOS))
+        .order_by(TransactionMappingRule.no)
+        .all()
+    )

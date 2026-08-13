@@ -20,6 +20,7 @@ from app.mock_adapters.mock_tiktokshop import MockTikTokShopAdapter
 from app.models.db_models import OmniOrder
 from app.routers.auth import require_login_api
 from app.services.inventory_service import deduct_stock_for_order, get_products_for_channel
+from app.services.journal_engine_service import post_order_completed_journal, post_order_refunded_journal
 from app.services.order_service import upsert_from_canonical
 from app.services.platform_service import list_active_platforms
 
@@ -34,14 +35,20 @@ _ADAPTER_REGISTRY = {
 
 
 def _ingest_order(db: Session, canonical_order) -> None:
-    """Upsert an order, then deduct stock ONLY the first time this order is
-    seen — otherwise re-syncing would decrement stock again for an order
-    that already existed (blueprint Section 3.5: outbound stock sync should
-    fire once per real order event, not once per poll)."""
+    """Upsert an order, then deduct stock and post journal entries ONLY the
+    first time this order is seen — otherwise re-syncing would decrement
+    stock / double-post journals for an order that already existed
+    (blueprint Section 3.5: outbound stock sync should fire once per real
+    order event, not once per poll; same principle applies to the Journal
+    Engine, Epic B)."""
     is_new = db.get(OmniOrder, canonical_order.platform_order_id) is None
-    upsert_from_canonical(db, canonical_order)
+    db_order = upsert_from_canonical(db, canonical_order)
     if is_new:
         deduct_stock_for_order(db, canonical_order)
+        if db_order.status == "Selesai":
+            post_order_completed_journal(db, db_order)
+        elif db_order.status == "Dikembalikan":
+            post_order_refunded_journal(db, db_order)
 
 
 def _sync_mock_orders(db: Session, per_platform: int = 1) -> dict:

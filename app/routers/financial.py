@@ -18,6 +18,7 @@ from app.services.financial_service import (
     get_income_statement,
     list_expenses,
 )
+from app.services.journal_engine_service import list_expense_rules, list_journal_entries
 
 router = APIRouter(prefix="/api/financial", tags=["financial"], dependencies=[Depends(require_login_api)])
 
@@ -34,6 +35,8 @@ class ExpenseCreateRequest(BaseModel):
     amount: float
     note: str = ""
     expense_date: str  # "YYYY-MM-DD"
+    rule_no: int
+    outlet_id: str | None = None
 
 
 @router.get("/income-statement")
@@ -84,5 +87,48 @@ def expenses(
 @router.post("/expenses")
 def create_expense(body: ExpenseCreateRequest, db: Session = Depends(get_db)):
     expense_date = datetime.fromisoformat(body.expense_date)
-    expense = add_expense(db, body.category, body.amount, body.note, expense_date)
+    expense = add_expense(
+        db, body.category, body.amount, body.note, expense_date,
+        rule_no=body.rule_no, outlet_id=body.outlet_id,
+    )
     return {"id": expense.id}
+
+
+@router.get("/expense-rules")
+def expense_rules(db: Session = Depends(get_db)):
+    return [
+        {
+            "no": r.no,
+            "event_trigger": r.event_trigger,
+            "kode_debet": r.kode_debet,
+            "nama_akun_debet": r.nama_akun_debet,
+            "kode_kredit": r.kode_kredit,
+            "nama_akun_kredit": r.nama_akun_kredit,
+        }
+        for r in list_expense_rules(db)
+    ]
+
+
+@router.get("/journal")
+def journal(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    start_dt, end_dt = _resolve_period(start, end)
+    entries = list_journal_entries(db, start_dt, end_dt)
+    return [
+        {
+            "no_jurnal": e.no_jurnal,
+            "tanggal": e.tanggal.isoformat(sep=" "),
+            "sumber_dokumen": e.sumber_dokumen,
+            "kode_debet": e.kode_debet,
+            "nama_akun_debet": e.nama_akun_debet,
+            "kode_kredit": e.kode_kredit,
+            "nama_akun_kredit": e.nama_akun_kredit,
+            "nominal": e.nominal,
+            "keterangan": e.keterangan,
+            "status": e.status,
+        }
+        for e in entries
+    ]

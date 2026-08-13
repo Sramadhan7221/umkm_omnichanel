@@ -214,6 +214,17 @@ class Expense(Base):
     expense_date = Column(DateTime, nullable=False, index=True)
     created_time = Column(DateTime, default=datetime.utcnow)
 
+    # Journal Engine (Epic B) — which of the 4 Expense-triggered mapping
+    # rules (#26/#30/#31/#32) this expense posts through. A closed set, not
+    # free text, because those 4 rules are the only debit-account x
+    # payment-source pairs the mapping matrix actually defines for manual
+    # expenses — required so every Expense produces exactly one JournalEntry.
+    rule_no = Column(Integer, ForeignKey("transaction_mapping_rule.no"), nullable=False, default=32)
+    # Only rule #31 (Gaji Tunai) touches an is_outlet_scoped account (1111
+    # Kas di Tangan); nullable because the other 3 rules credit company-wide
+    # accounts (Kas di Bank) with no outlet concept.
+    outlet_id = Column(String, ForeignKey("outlet.kode_outlet"), nullable=True)
+
 
 # ---------------------------------------------------------------------------
 # Reconciliation (Fase 4) — one Settlement row per order, comparing the
@@ -276,3 +287,55 @@ class Outlet(Base):
     alamat = Column(Text, default="")
     is_active = Column(Boolean, default=True, nullable=False)
     created_time = Column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Journal Engine (Epic B) — TransactionMappingRule is the 32-row "aturan
+# jurnal per event x platform" seeded from docs/transaction_mapping_matrix.csv
+# (source of truth: the business owner's own prototype, NOT hardcoded here —
+# same principle as Epic A's Account seed). JournalEntry is the resulting
+# double-entry ledger: one row per posted transaction, always exactly one
+# debit leg + one credit leg of the same nominal (so "total debet = total
+# kredit" holds by construction, not by a separate balance-check step).
+# ---------------------------------------------------------------------------
+
+class TransactionMappingRule(Base):
+    __tablename__ = "transaction_mapping_rule"
+
+    no = Column(Integer, primary_key=True)  # matches the sheet's own row numbering (1-32), not autoincrement
+    kategori_transaksi = Column(String, nullable=False)
+    event_trigger = Column(String, nullable=False)
+    platform = Column(String, nullable=False)
+    kode_debet = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    nama_akun_debet = Column(String, nullable=False)
+    kode_kredit = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    nama_akun_kredit = Column(String, nullable=False)
+    trigger_dokumen = Column(String, default="")
+    aturan_keterangan = Column(Text, default="")
+
+
+class JournalEntry(Base):
+    __tablename__ = "journal_entry"
+
+    no_jurnal = Column(String, primary_key=True)  # generated "JE-<uuid10>", same pattern as Settlement.settlement_id
+    tanggal = Column(DateTime, nullable=False, index=True)
+    kode_debet = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    nama_akun_debet = Column(String, nullable=False)
+    kode_kredit = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    nama_akun_kredit = Column(String, nullable=False)
+    nominal = Column(Float, nullable=False)
+    sumber_dokumen = Column(String, default="")
+    keterangan = Column(String, default="")
+    status = Column(String, nullable=False, default="OTOMATIS")  # "OTOMATIS" | "MANUAL"
+
+    # Only set when kode_debet or kode_kredit is an is_outlet_scoped account (1111).
+    outlet_id = Column(String, ForeignKey("outlet.kode_outlet"), nullable=True)
+    # Nearest matching rule, kept for traceability even when the posted accounts
+    # were generalized beyond that rule's literal row (see journal_engine_service).
+    rule_no = Column(Integer, ForeignKey("transaction_mapping_rule.no"), nullable=True)
+
+    order_id = Column(String, ForeignKey("omni_order.platform_order_id"), nullable=True)
+    settlement_id = Column(String, ForeignKey("settlement.settlement_id"), nullable=True)
+    expense_id = Column(Integer, ForeignKey("expense.id"), nullable=True)
+
+    created_time = Column(DateTime, default=datetime.utcnow, index=True)

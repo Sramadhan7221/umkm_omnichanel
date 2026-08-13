@@ -19,6 +19,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.db_models import OmniOrder, Settlement
+from app.services.journal_engine_service import post_settlement_journal
 
 # Peluang satu settlement punya potongan tak terjelaskan (2-8% dari
 # net_amount) — merepresentasikan kasus nyata di blueprint Section 1.2.
@@ -46,7 +47,7 @@ def generate_settlements(db: Session) -> int:
         diff = round(payout - expected, 2)
         status = "Cocok" if abs(diff) < 1 else "Selisih"
 
-        db.add(Settlement(
+        settlement = Settlement(
             settlement_id=f"SETL-{uuid.uuid4().hex[:10].upper()}",
             platform_order_id=order.platform_order_id,
             channel=order.channel,
@@ -56,7 +57,9 @@ def generate_settlements(db: Session) -> int:
             status=status,
             batch_ref=batch_ref,
             settlement_date=datetime.utcnow(),
-        ))
+        )
+        db.add(settlement)
+        post_settlement_journal(db, settlement)
         created += 1
 
     db.commit()
