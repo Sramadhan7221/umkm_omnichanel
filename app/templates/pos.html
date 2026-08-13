@@ -3,36 +3,30 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>Kotak Masuk Pesanan | UMKM Omnichannel</title>
+    <title>Kasir POS | UMKM Omnichannel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Kotak masuk pesanan terpadu dari Shopee, TikTok Shop, GrabFood, dan GoFood." name="description" />
+    <meta content="Nota penjualan offline untuk outlet fisik." name="description" />
 
     <link rel="shortcut icon" href="/static/images/favicon.ico">
 
-    <!-- Datatables css -->
-    <link href="/static/vendor/datatables.net-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet" type="text/css" />
-    <link href="/static/vendor/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css" rel="stylesheet" type="text/css" />
-    <link href="/static/vendor/datatables.net-fixedheader-bs5/css/fixedHeader.bootstrap5.min.css" rel="stylesheet" type="text/css" />
-    <link href="/static/vendor/datatables.net-buttons-bs5/css/buttons.bootstrap5.min.css" rel="stylesheet" type="text/css" />
-
-    <!-- Theme Config Js -->
     <script src="/static/js/config.js"></script>
 
-    <!-- App css (Techmin template, unmodified) -->
     <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
     <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
 
     <style>
-        .badge-channel-shopee { background-color: #ee4d2d; }
-        .badge-channel-grabfood { background-color: #00b14f; }
-        .badge-fulfillment { font-weight: 500; }
+        @media print {
+            body * { visibility: hidden; }
+            #nota-preview, #nota-preview * { visibility: visible; }
+            #nota-preview { position: absolute; top: 0; left: 0; width: 100%; }
+            #nota-preview .no-print { display: none !important; }
+        }
     </style>
 </head>
 
 <body>
     <div class="wrapper">
 
-        <!-- ========== Topbar ========== -->
         <div class="navbar-custom">
             <div class="topbar container-fluid">
                 <div class="d-flex align-items-center gap-1">
@@ -51,15 +45,10 @@
                         <i class="mdi mdi-menu"></i>
                     </button>
 
-                    <h4 class="page-title d-none d-sm-block">Kotak Masuk Pesanan</h4>
+                    <h4 class="page-title d-none d-sm-block">Kasir POS</h4>
                 </div>
 
                 <ul class="topbar-menu d-flex align-items-center gap-3">
-                    <li>
-                        <span class="badge bg-info-subtle text-info">
-                            <i class="ri-flask-line align-middle"></i> Mode Demo &mdash; data dummy
-                        </span>
-                    </li>
                     <li class="dropdown">
                         <a class="nav-link dropdown-toggle arrow-none nav-user" data-bs-toggle="dropdown" href="#" role="button">
                             <span class="account-user-avatar"><i class="ri-user-3-line fs-22"></i></span>
@@ -74,9 +63,7 @@
                 </ul>
             </div>
         </div>
-        <!-- ========== /Topbar ========== -->
 
-        <!-- ========== Left Sidebar ========== -->
         <div class="leftside-menu">
             <a href="/order_inbox" class="logo logo-light">
                 <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
@@ -92,14 +79,14 @@
                     <li class="side-nav-title">UMKM Omnichannel</li>
 
                     <li class="side-nav-item">
-                        <a href="/order_inbox" class="side-nav-link active">
+                        <a href="/order_inbox" class="side-nav-link">
                             <i class="ri-inbox-line"></i>
                             <span> Kotak Masuk Pesanan</span>
                         </a>
                     </li>
 
                     <li class="side-nav-item">
-                        <a href="/pos" class="side-nav-link">
+                        <a href="/pos" class="side-nav-link active">
                             <i class="ri-shopping-cart-2-line"></i>
                             <span> Kasir POS</span>
                         </a>
@@ -144,94 +131,121 @@
                 </ul>
             </div>
         </div>
-        <!-- ========== /Left Sidebar ========== -->
 
-        <!-- ========== Page Content ========== -->
         <div class="content-page">
             <div class="content">
                 <div class="container-fluid">
 
-                    <div id="sync-result"></div>
-
                     <div class="row">
                         <div class="col-12">
                             <div class="page-title-box d-flex align-items-center justify-content-between">
-                                <h4 class="page-title">Kotak Masuk Pesanan Terpadu</h4>
-                                <div>
-                                    <button id="btn-sync" class="btn btn-primary"
-                                        <i class="ri-refresh-line align-middle"></i> Sinkronkan Pesanan
+                                <h4 class="page-title">Kasir POS</h4>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-body">
+                                    <label class="form-label">Outlet Aktif</label>
+                                    <select class="form-select w-auto d-inline-block" id="select-outlet">
+                                        <option value="">-- Pilih outlet --</option>
+                                    </select>
+                                    <p class="text-muted mb-0 mt-2" id="outlet-hint">
+                                        <i class="ri-information-line me-1"></i>
+                                        Pilih outlet aktif dulu sebelum bisa mulai input nota.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="pos-form-area" class="row d-none">
+                        <div class="col-lg-7">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Tambah Barang</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row g-2 align-items-end mb-3">
+                                        <div class="col-6">
+                                            <label class="form-label">Barang (Master Barang)</label>
+                                            <select class="form-select" id="select-product"></select>
+                                        </div>
+                                        <div class="col-3">
+                                            <label class="form-label">Harga Satuan</label>
+                                            <input type="text" class="form-control" id="input-unit-price" readonly>
+                                        </div>
+                                        <div class="col-2">
+                                            <label class="form-label">Qty</label>
+                                            <input type="number" class="form-control" id="input-qty" min="1" value="1">
+                                        </div>
+                                        <div class="col-1">
+                                            <button class="btn btn-primary w-100" id="btn-add-item"><i class="ri-add-line"></i></button>
+                                        </div>
+                                    </div>
+
+                                    <table class="table table-sm" id="cart-table">
+                                        <thead>
+                                            <tr><th>Barang</th><th class="text-end">Qty</th><th class="text-end">Harga</th><th class="text-end">Subtotal</th><th></th></tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                        <tfoot>
+                                            <tr><th colspan="3" class="text-end">TOTAL</th><th class="text-end" id="cart-total">Rp 0</th><th></th></tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-5">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Detail Nota</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label">Nama Pelanggan</label>
+                                        <input type="text" class="form-control" id="input-customer" placeholder="Opsional (default: Umum)">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Metode Pembayaran</label>
+                                        <select class="form-select" id="select-payment"></select>
+                                    </div>
+                                    <button class="btn btn-success w-100" id="btn-save-nota">
+                                        <i class="ri-save-line align-middle"></i> Simpan Nota
                                     </button>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-xl-3 col-md-6">
+                    <div class="row d-none" id="nota-preview-row">
+                        <div class="col-lg-6">
                             <div class="card">
-                                <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Pesanan</p>
-                                    <h3 class="my-1" id="stat-total">0</h3>
-                                    <p class="mb-0 text-muted"><span>Semua platform aktif</span></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-xl-3 col-md-6">
-                            <div class="card">
-                                <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Jumlah Kotor</p>
-                                    <h3 class="my-1" id="stat-gross">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span>Total dibayar pembeli</span></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-xl-3 col-md-6">
-                            <div class="card">
-                                <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Jumlah Bersih</p>
-                                    <h3 class="my-1" id="stat-net">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span>Perkiraan diterima penjual</span></p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-xl-3 col-md-6">
-                            <div class="card">
-                                <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Biaya</p>
-                                    <h3 class="my-1" id="stat-fees">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span>Kotor &minus; Bersih</span></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title">Pesanan</h4>
-                                    <p class="text-muted mb-0">
-                                        Pesanan ternormalisasi dari <strong>MockShopeeAdapter</strong> dan
-                                        <strong>MockGrabFoodAdapter</strong>. Klik ikon detail pada baris untuk
-                                        melihat rincian item dan biaya.
-                                    </p>
-                                </div>
-                                <div class="card-body">
-                                    <table id="order-inbox-datatable" class="table table-striped dt-responsive nowrap w-100">
-                                        <thead>
-                                            <tr>
-                                                <th>Platform</th>
-                                                <th>Jenis Pemenuhan</th>
-                                                <th>Status</th>
-                                                <th>ID Pesanan Platform</th>
-                                                <th>Waktu Pesanan</th>
-                                                <th>Kotor</th>
-                                                <th>Bersih</th>
-                                                <th>Detail</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody></tbody>
+                                <div class="card-body" id="nota-preview">
+                                    <div class="text-center mb-3">
+                                        <h4 class="mb-0" id="nota-toko-nama"></h4>
+                                        <p class="text-muted mb-0" id="nota-toko-alamat"></p>
+                                        <h5 class="mt-3">NOTA PENJUALAN OFFLINE (POS KASIR)</h5>
+                                    </div>
+                                    <table class="table table-borderless table-sm mb-3">
+                                        <tbody>
+                                            <tr><td>No. Nota</td><td id="nota-no"></td><td>Nama Pelanggan</td><td id="nota-customer"></td></tr>
+                                            <tr><td>Tanggal</td><td id="nota-tanggal"></td><td>Metode Pembayaran</td><td id="nota-metode"></td></tr>
+                                        </tbody>
                                     </table>
+                                    <table class="table table-sm">
+                                        <thead><tr><th>No</th><th>Nama Barang</th><th class="text-end">Qty</th><th class="text-end">Harga Satuan</th><th class="text-end">Total</th></tr></thead>
+                                        <tbody id="nota-items"></tbody>
+                                    </table>
+                                    <h5 class="text-end">TOTAL TRANSAKSI: <span id="nota-total"></span></h5>
+
+                                    <div class="no-print text-end mt-3">
+                                        <button class="btn btn-light" id="btn-new-sale">Transaksi Baru</button>
+                                        <button class="btn btn-primary" id="btn-print-nota"><i class="ri-printer-line align-middle"></i> Cetak</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -251,45 +265,15 @@
                 </div>
             </footer>
         </div>
-        <!-- ========== /Page Content ========== -->
     </div>
 
-    <!-- Order Detail Modal -->
-    <div class="modal fade" id="order-detail-modal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Detail Pesanan</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
-                </div>
-                <div class="modal-body" id="order-detail-body">
-                    <div class="text-center text-muted py-4">Memuat...</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Vendor js -->
     <script src="/static/js/vendor.min.js"></script>
     <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
-
-    <!-- Datatables js -->
-    <script src="/static/vendor/datatables.net/js/jquery.dataTables.min.js"></script>
-    <script src="/static/vendor/datatables.net-bs5/js/dataTables.bootstrap5.min.js"></script>
-    <script src="/static/vendor/datatables.net-responsive/js/dataTables.responsive.min.js"></script>
-    <script src="/static/vendor/datatables.net-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
-    <script src="/static/vendor/datatables.net-fixedheader/js/dataTables.fixedHeader.min.js"></script>
-    <script src="/static/vendor/datatables.net-buttons/js/dataTables.buttons.min.js"></script>
-    <script src="/static/vendor/datatables.net-buttons-bs5/js/buttons.bootstrap5.min.js"></script>
-
-    <!-- App js -->
     <script src="/static/js/app.min.js"></script>
 
     <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
     <script src="/static/js/auth-common.js"></script>
-
-    <!-- Order Inbox logic (calls FastAPI /api/* via fetch) -->
-    <script src="/static/js/order_inbox.js"></script>
+    <script src="/static/js/pos.js"></script>
 </body>
 
 </html>

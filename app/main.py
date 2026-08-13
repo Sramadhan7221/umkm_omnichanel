@@ -17,12 +17,12 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine, run_lightweight_migrations
 from app.models.db_models import OmniOrder  # noqa: F401 (ensures table is registered)
-from app.routers import api, auth, financial, inventory, outlets, pages, platforms, reconciliation
+from app.routers import api, auth, financial, inventory, outlets, pages, platforms, pos, reconciliation
 from app.routers.api import _sync_mock_orders
 from app.services.auth_service import seed_admin_user
 from app.services.chart_of_accounts_service import seed_accounts
 from app.services.inventory_service import seed_products
-from app.services.journal_engine_service import seed_mapping_rules
+from app.services.journal_engine_service import seed_mapping_rules, seed_pos_payment_extension
 from app.services.outlet_service import seed_outlets
 from app.services.platform_service import backfill_fee_rates, seed_platforms
 from app.services.reconciliation_service import generate_settlements
@@ -46,6 +46,7 @@ async def lifespan(app: FastAPI):
         seed_admin_user(db)
         seed_accounts(db)  # Chart of Accounts (Epic A) — no dependency on order data
         seed_mapping_rules(db)  # Transaction Mapping Matrix (Epic B) — must exist before any journal posting
+        seed_pos_payment_extension(db)  # POS payment methods 33/34 (Epic C, PO-approved extension)
         seed_outlets(db)  # Outlets (Epic H) — no dependency on order data
         seed_platforms(db)  # platform on/off switches must exist before orders can check them
         backfill_fee_rates(db)  # fix fee_rate=0 for platforms created before this column existed
@@ -74,4 +75,5 @@ app.include_router(financial.router)
 app.include_router(reconciliation.router)
 app.include_router(platforms.router)
 app.include_router(outlets.router)
+app.include_router(pos.router)
 app.include_router(pages.router)

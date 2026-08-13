@@ -29,10 +29,18 @@ _DISCREPANCY_RANGE = (0.02, 0.08)
 
 def generate_settlements(db: Session) -> int:
     """Generate a Settlement row for every order that doesn't have one yet
-    (simulates importing a new platform payout batch)."""
+    (simulates importing a new platform payout batch).
+
+    Offline POS orders (Epic C) are excluded — there's no "platform payout"
+    concept for a cash register: rules #8/#9/#33/#34 already book the full
+    cash/bank/e-wallet leg directly at sale time. (QRIS's own MDR-fee and
+    bank-settlement legs, rules #10/#11, remain an unwired gap — no data
+    source for "the bank confirmed this specific nota's funds arrived"
+    exists yet, same treatment as Epic B's other unwired rules.)"""
     already_settled = {s.platform_order_id for s in db.query(Settlement.platform_order_id).all()}
-    orders = db.query(OmniOrder).filter(~OmniOrder.platform_order_id.in_(already_settled)).all() \
-        if already_settled else db.query(OmniOrder).all()
+    query = db.query(OmniOrder).filter(OmniOrder.channel != "Offline POS")
+    orders = query.filter(~OmniOrder.platform_order_id.in_(already_settled)).all() \
+        if already_settled else query.all()
 
     batch_ref = f"BATCH-{datetime.utcnow():%Y%m%d%H%M%S}"
     created = 0

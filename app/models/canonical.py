@@ -20,6 +20,7 @@ class Channel(str, Enum):
     TIKTOK_SHOP = "tiktok_shop"
     GRABFOOD = "grabfood"
     GOFOOD = "gofood"
+    OFFLINE_POS = "offline_pos"
 
 
 class FulfillmentType(str, Enum):
@@ -28,6 +29,7 @@ class FulfillmentType(str, Enum):
     orders live for days, food-delivery orders live for minutes."""
     SHIPMENT = "shipment"          # e-commerce: pack -> courier -> transit -> delivered
     INSTANT_PICKUP = "instant_pickup"  # food delivery: accept -> prep -> driver pickup
+    WALK_IN = "walk_in"            # POS Kasir (Epic C): nota created directly as COMPLETED, no state machine
 
 
 class OrderStatus(str, Enum):
@@ -66,6 +68,7 @@ CHANNEL_REVENUE_ACCOUNT: dict[Channel, str] = {
     Channel.TIKTOK_SHOP: "4113",
     Channel.GRABFOOD: "4115",
     Channel.GOFOOD: "4115",
+    Channel.OFFLINE_POS: "4114",
 }
 
 # Channel -> kode akun piutang (Epic B). Same grouping as
@@ -117,6 +120,7 @@ class CanonicalOrder:
     customer_ref: str                 # anonymized platform buyer id
     raw_status: str                   # original platform status string, for debugging/audit
     payout_batch_ref: Optional[str] = None
+    outlet_id: Optional[str] = None   # POS Kasir (Epic C) only — which physical outlet this nota was sold from
 
 
 @dataclass

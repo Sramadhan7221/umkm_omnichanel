@@ -86,3 +86,10 @@ async def outlets(request: Request):
     if not is_logged_in(request):
         return RedirectResponse(url="/login")
     return templates.TemplateResponse(request, "outlets.html", _user_context(request))
+
+
+@router.get("/pos")
+async def pos(request: Request):
+    if not is_logged_in(request):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "pos.html", _user_context(request))

@@ -75,6 +75,23 @@ _FEE_DEBIT_ACCOUNT_AND_RULE = {
 
 _COGS_RULE_NO = 24
 
+# POS Kasir payment methods (Epic C). Rules 8 (Tunai) and 9 (QRIS) are
+# literal rows from the 32-row Excel matrix. Rules 33/34 (Transfer,
+# E-Wallet) do NOT exist in that matrix — the PDF's Epic C task text asks
+# for 4 payment methods but the source sheet only ever wrote 2. Per the
+# Product Owner's explicit choice this session, they were added using the
+# same accounts the matrix already uses for exactly this purpose elsewhere
+# (1113 Kas di Bank for #7/#14, 1112 Kas di E-Wallet for #18) — seeded by
+# seed_pos_payment_extension() below, NOT from transaction_mapping_matrix.csv,
+# so that CSV stays the untouched, literal 32-row Excel source.
+POS_PAYMENT_RULE_NOS = [8, 9, 33, 34]
+
+_POS_PAYMENT_EXTENSION_ROWS = [
+    # (no, event_trigger, kode_debet, nama_akun_debet)
+    (33, "Penjualan via Transfer Bank", "1113", "Kas di Bank"),
+    (34, "Penjualan via E-Wallet", "1112", "Kas di E-Wallet"),
+]
+
 
 def seed_mapping_rules(db: Session) -> None:
     if db.query(TransactionMappingRule).count() > 0:
@@ -93,6 +110,31 @@ def seed_mapping_rules(db: Session) -> None:
                 trigger_dokumen=row["trigger_dokumen"],
                 aturan_keterangan=row["aturan_keterangan"],
             ))
+    db.commit()
+
+
+def seed_pos_payment_extension(db: Session) -> None:
+    """Adds rules 33/34 (Transfer, E-Wallet — see POS_PAYMENT_RULE_NOS'
+    docstring above) if not already present. Idempotent, and independent of
+    seed_mapping_rules so it can be re-run safely regardless of ordering."""
+    for no, event_trigger, kode_debet, nama_akun_debet in _POS_PAYMENT_EXTENSION_ROWS:
+        if db.get(TransactionMappingRule, no) is not None:
+            continue
+        db.add(TransactionMappingRule(
+            no=no,
+            kategori_transaksi="Penjualan Offline & POS",
+            event_trigger=event_trigger,
+            platform="Kasir / POS",
+            kode_debet=kode_debet,
+            nama_akun_debet=nama_akun_debet,
+            kode_kredit="4114",
+            nama_akun_kredit="Pendapatan Usaha - Offline",
+            trigger_dokumen="Struk Kasir / POS Daily Summary",
+            aturan_keterangan=(
+                "Ekstensi Epic C (bukan dari sheet Excel asli) — disetujui Product Owner "
+                "untuk melengkapi rule #8/#9 yang hanya mencakup Tunai/QRIS."
+            ),
+        ))
     db.commit()
 
 
@@ -141,6 +183,25 @@ def post_journal(
     return entry
 
 
+def _post_cogs(db: Session, order: OmniOrder) -> JournalEntry | None:
+    """Rule #24 — channel-agnostic, shared by every completed-sale path
+    (online order completion and POS Kasir) so the qty x cogs_price logic
+    isn't duplicated."""
+    label = "Nota" if order.channel == "Offline POS" else "Pesanan"
+    cogs_total = 0.0
+    for item in order.items:
+        product = db.get(Product, item.sku)
+        if product is None:
+            continue  # SKU not in catalog — same skip-if-missing behavior as deduct_stock_for_order
+        cogs_total += item.quantity * product.cogs_price
+    return post_journal(
+        db, kode_debet="5110", kode_kredit="1131", nominal=cogs_total,
+        tanggal=order.order_time, sumber_dokumen=f"{label} {order.platform_order_id}",
+        keterangan=f"HPP {label.lower()} {order.platform_order_id}",
+        rule_no=_COGS_RULE_NO, order_id=order.platform_order_id,
+    )
+
+
 def post_order_completed_journal(db: Session, order: OmniOrder) -> list[JournalEntry]:
     channel_enum = _LABEL_TO_CHANNEL[order.channel]
     receivable_account = CHANNEL_RECEIVABLE_ACCOUNT[channel_enum]
@@ -167,18 +228,7 @@ def post_order_completed_journal(db: Session, order: OmniOrder) -> list[JournalE
             rule_no=rule_no, order_id=order.platform_order_id,
         ))
 
-    cogs_total = 0.0
-    for item in order.items:
-        product = db.get(Product, item.sku)
-        if product is None:
-            continue  # SKU not in catalog — same skip-if-missing behavior as deduct_stock_for_order
-        cogs_total += item.quantity * product.cogs_price
-    entries.append(post_journal(
-        db, kode_debet="5110", kode_kredit="1131", nominal=cogs_total,
-        tanggal=order.order_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
-        keterangan=f"HPP pesanan {order.platform_order_id}",
-        rule_no=_COGS_RULE_NO, order_id=order.platform_order_id,
-    ))
+    entries.append(_post_cogs(db, order))
 
     return [e for e in entries if e is not None]
 
@@ -195,6 +245,28 @@ def post_order_refunded_journal(db: Session, order: OmniOrder) -> list[JournalEn
         rule_no=rule_no, order_id=order.platform_order_id,
     )
     return [entry] if entry is not None else []
+
+
+def post_pos_sale_journal(db: Session, order: OmniOrder, rule_no: int) -> list[JournalEntry]:
+    """POS Kasir (Epic C) — unlike online orders, a nota has no intermediate
+    receivable/fee step: the full nominal hits the payment account directly
+    (rules #8/#9/#33/#34 all have this shape). outlet_id is resolved from
+    the debit account's own is_outlet_scoped flag (data-driven — only rule
+    8's 1111 Kas di Tangan is outlet-scoped) rather than a hardcoded "1111"
+    check."""
+    rule = db.get(TransactionMappingRule, rule_no)
+    akun_debet = db.get(Account, rule.kode_debet)
+    outlet_id = order.outlet_id if akun_debet.is_outlet_scoped else None
+
+    entries = [post_journal(
+        db, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit, nominal=order.gross_amount,
+        tanggal=order.order_time, sumber_dokumen=f"Nota {order.platform_order_id}",
+        keterangan=f"{rule.event_trigger} - {order.platform_order_id}",
+        rule_no=rule_no, outlet_id=outlet_id, order_id=order.platform_order_id,
+    )]
+    entries.append(_post_cogs(db, order))
+
+    return [e for e in entries if e is not None]
 
 
 def post_settlement_journal(db: Session, settlement: Settlement) -> JournalEntry | None:
@@ -240,6 +312,15 @@ def list_expense_rules(db: Session) -> list[TransactionMappingRule]:
     return (
         db.query(TransactionMappingRule)
         .filter(TransactionMappingRule.no.in_(EXPENSE_RULE_NOS))
+        .order_by(TransactionMappingRule.no)
+        .all()
+    )
+
+
+def list_pos_payment_rules(db: Session) -> list[TransactionMappingRule]:
+    return (
+        db.query(TransactionMappingRule)
+        .filter(TransactionMappingRule.no.in_(POS_PAYMENT_RULE_NOS))
         .order_by(TransactionMappingRule.no)
         .all()
     )
