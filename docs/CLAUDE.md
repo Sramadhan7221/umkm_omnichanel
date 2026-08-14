@@ -88,7 +88,36 @@ Hasil observasi `app/models/db_models.py`, `app/models/canonical.py`, `app/mock_
   UI: tombol "Proses Retur" (+ checkbox "kembalikan ke stok") muncul di modal detail Order Inbox, HANYA untuk order berstatus Selesai — bukan dropdown ubah status generik, sesuai task teknis epic ("bukan cuma ubah status").
   **Belum dikerjakan (di luar acceptance criteria, dicatat):** retur sebagian/per-item (cuma retur satu order penuh), pembalikan akrual PPh Final kalau order yang diretur sudah kepakai di bulan yang sudah ditutup buku (Epic E's `close_month_pph` sudah idempoten per periode, tidak otomatis re-kalkulasi kalau ada retur setelahnya).
   `tests/test_retur.py` (9 test, lulus semua + 55 test lama tetap lulus, total 64). Diverifikasi end-to-end: retur GrabFood tanpa restock (kredit 1123, tidak ada rule #20), retur nota POS QRIS dengan restock (kredit 1122 — bukan 1121/1123 — dan rule #20 nominal persis sama dengan rule #24 aslinya, stok naik kembali), retur ganda ditolak 400.
+- **Task Backlog 1 (Rule #25 ke dropdown Jenis Beban) — selesai.** `EXPENSE_RULE_NOS` di `journal_engine_service.py` sekarang `[25, 26, 30, 31, 32]`. Validasi "wajib outlet" dibuat data-driven: `add_expense()` (`financial_service.py`) sekarang lookup `TransactionMappingRule.kode_kredit` → `Account.is_outlet_scoped` dan `raise ValueError` (ditangkap router jadi HTTP 400) kalau rule itu outlet-scoped tapi `outlet_id` kosong — bukan cek nomor rule hardcoded. Endpoint `GET /api/financial/expense-rules` sekarang menyertakan field `outlet_required` per rule (dihitung dari `kode_kredit` yang sama, bukan `kode_debet` — akun outlet-scoped 1111 selalu ada di sisi kredit untuk rule biaya, bukan debet). `financial.js` tidak lagi punya `OUTLET_RULE_NO = 31` hardcoded — `toggleOutletField()` dan validasi submit sekarang baca `expenseRulesByNo[ruleNo].outlet_required` dari response API, jadi rule outlet-scoped baru di masa depan tidak butuh ubah kode frontend.
+  `tests/test_journal_engine.py` (+5 test: rule #25 posting ke akun 5120/1111 dengan outlet, rejection outlet_id kosong untuk rule #25 dan #31 (parametrized), rule non-outlet-scoped tetap boleh tanpa outlet, endpoint expense-rules mengembalikan 5 rule dengan flag `outlet_required` yang benar, endpoint POST /expenses menolak 400 tanpa outlet — total 68 test, semua lulus). Diverifikasi end-to-end lewat server nyata: POST tanpa outlet untuk rule #25 → 400 dengan pesan jelas; POST dengan outlet OUT-PST → 200, saldo Kas per Outlet OUT-PST berubah -50.000 (kredit 1111), OUT-CB1 tetap 0 — breakdown per outlet rekonsil dengan benar.
 
 ## Status Proyek
 
-Modul akuntansi double-entry + POS offline SELESAI — semua 8 epic (A, H, D, B, C, E, F, G) dari `docs/Analisis_Kebutuhan_Modul_Akuntansi_POS.pdf` sudah diimplementasikan dan diverifikasi (test otomatis + verifikasi manual lewat server nyata di tiap epic). Item yang sengaja ditunda (dicatat di atas per-epic, bukan lupa): export PDF/Excel, akun Laba Ditahan CoA formal + tutup buku tahunan, rule #10/#11 (MDR QRIS + settlement QRIS ke bank), retur sebagian/per-item.
+Modul akuntansi double-entry + POS offline SELESAI — semua 8 epic (A, H, D, B, C, E, F, G) dari `docs/Analisis_Kebutuhan_Modul_Akuntansi_POS.pdf` sudah diimplementasikan dan diverifikasi (test otomatis + verifikasi manual lewat server nyata di tiap epic, 64/64 test lulus dikonfirmasi ulang lewat re-run independen). Item yang sengaja ditunda dari 32 baris matriks/task teknis (dicatat di atas per-epic, bukan lupa): rule #2/#10/#11/#15-18/#21-23/#27 (tidak ada sumber data/trigger), akun Laba Ditahan CoA formal + tutup buku tahunan, retur sebagian/per-item. Rule #25 (dropdown Jenis Beban) sudah dikerjakan (lihat Progress). Export PDF/Excel masih task siap-kerja di bagian **Task Backlog** di bawah.
+
+**Catatan penting yang perlu direview manual (bukan bug, tapi keputusan bisnis yang dibuat otomatis):** migration checkpoint Epic F membandingkan net_profit engine lama (Rp 2.829.040, menghitung semua order apapun status, HPP tidak dikurangi) vs engine baru (Rp 116.240, hanya order Selesai, HPP dikurangi eksplisit) — CLAUDE.md mencatat ini "dikonfirmasi PO" tapi konfirmasi itu terjadi di sesi sebelumnya, bukan langsung dari Anda. Kalau metodologi baru ini belum pernah direview eksplisit, sebaiknya dicek dulu sebelum dianggap final.
+
+## Task Backlog (siap dikerjakan sesi berikutnya)
+
+Task Backlog 1 (Rule #25) selesai — lihat entrinya di **Progress** di atas. Sisa satu task konkret:
+
+### Task Backlog 2 — Export PDF/Excel untuk Neraca, Laba Rugi, Jurnal Transaksi
+
+**Kenapa:** Disebut di task teknis Epic F pada `docs/Analisis_Kebutuhan_Modul_Akuntansi_POS.pdf` tapi tidak masuk acceptance criteria formal epic itu, jadi belum pernah dikerjakan. Tidak ada library PDF/Excel generation di `requirements.txt` saat ini.
+
+**Task teknis:**
+1. Tambahkan library ke `requirements.txt` — Excel: `openpyxl`; PDF: pilih yang ringan untuk deploy single-process (lihat catatan Railway/Docker di `README.md` dan `railway.json`), misalnya `reportlab` atau `weasyprint` (cek ketersediaan dependency sistem untuk weasyprint sebelum pilih, karena butuh library native tambahan).
+2. Tambah endpoint export per laporan yang REUSE service function yang sudah ada (jangan query ulang / hitung ulang angka secara terpisah — harus selalu identik dengan yang tampil di UI):
+   - `GET /api/financial/balance-sheet/export?as_of=...&format=pdf|xlsx` → `balance_sheet_service.get_balance_sheet`
+   - `GET /api/financial/profit-loss/export?start=...&end=...&format=pdf|xlsx` → `balance_sheet_service.get_profit_loss`
+   - `GET /api/financial/journal/export?start=...&end=...&format=pdf|xlsx` → `journal_engine_service.list_journal_entries`
+3. Kolom & layout export Jurnal Transaksi harus identik dengan tabel di UI `/financial` (No Nota, Tanggal, Kode+Nama Debet, Kode+Nama Kredit, Nominal, Keterangan, Status) — konsisten dengan acceptance criteria Epic B yang sudah ada di dokumen sumber.
+4. Tambah tombol "Export PDF" / "Export Excel" di `app/templates/balance_sheet.html` dan `app/templates/financial.html`, memicu download file dari endpoint di atas.
+5. Pastikan endpoint tidak error 500 untuk periode/tanggal tanpa data (list kosong tetap menghasilkan file valid, bukan crash).
+
+**Acceptance criteria:**
+- Neraca, Laba Rugi, dan Jurnal Transaksi masing-masing bisa diunduh sebagai PDF dan sebagai Excel dari halaman terkait.
+- Angka di file yang diunduh identik dengan yang ditampilkan di layar (dari service function yang sama).
+- Export tetap berhasil (bukan error) untuk periode yang tidak punya transaksi sama sekali.
+
+**File terkait:** `requirements.txt`, `app/services/balance_sheet_service.py`, `app/services/journal_engine_service.py`, `app/routers/financial.py`, `app/templates/balance_sheet.html`, `app/templates/financial.html`, `app/static/js/*.js`.

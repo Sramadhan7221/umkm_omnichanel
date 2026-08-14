@@ -12,7 +12,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.db_models import Account, Expense, JournalEntry, OmniOrder
+from app.models.db_models import Account, Expense, JournalEntry, OmniOrder, TransactionMappingRule
 from app.services.balance_sheet_service import get_account_balance
 from app.services.journal_engine_service import post_expense_journal, post_journal
 
@@ -21,6 +21,13 @@ def add_expense(
     db: Session, category: str, amount: float, note: str, expense_date: datetime,
     rule_no: int, outlet_id: str | None = None,
 ) -> Expense:
+    rule = db.get(TransactionMappingRule, rule_no)
+    kredit_account = db.get(Account, rule.kode_kredit)
+    if kredit_account.is_outlet_scoped and not outlet_id:
+        raise ValueError(
+            f"Jenis beban '{rule.event_trigger}' membutuhkan outlet — pilih outlet sebelum menyimpan."
+        )
+
     expense = Expense(
         category=category, amount=amount, note=note, expense_date=expense_date,
         rule_no=rule_no, outlet_id=outlet_id,

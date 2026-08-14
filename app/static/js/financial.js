@@ -9,7 +9,7 @@
 
     var API_BASE = "/api/financial";
     var journalTable = null;
-    var OUTLET_RULE_NO = 31; // "Gaji/Upah Tunai" — the only expense rule crediting an outlet-scoped account (1111)
+    var expenseRulesByNo = {}; // no -> {..., outlet_required}, populated by loadExpenseRules() — no hardcoded rule no
 
     function formatRupiah(amount) {
         var n = Number(amount || 0);
@@ -160,6 +160,9 @@
         return fetch(API_BASE + "/expense-rules")
             .then(function (res) { return res.json(); })
             .then(function (rules) {
+                expenseRulesByNo = {};
+                rules.forEach(function (r) { expenseRulesByNo[r.no] = r; });
+
                 var select = document.getElementById("expense-rule");
                 select.innerHTML = rules.map(function (r) {
                     return "<option value='" + r.no + "'>" + r.event_trigger + " (" +
@@ -180,9 +183,14 @@
             });
     }
 
+    function ruleRequiresOutlet(ruleNo) {
+        var rule = expenseRulesByNo[ruleNo];
+        return !!(rule && rule.outlet_required);
+    }
+
     function toggleOutletField() {
         var ruleNo = parseInt(document.getElementById("expense-rule").value, 10);
-        document.getElementById("expense-outlet-wrapper").classList.toggle("d-none", ruleNo !== OUTLET_RULE_NO);
+        document.getElementById("expense-outlet-wrapper").classList.toggle("d-none", !ruleRequiresOutlet(ruleNo));
     }
 
     function loadExpenses() {
@@ -213,13 +221,14 @@
         var amount = parseFloat(document.getElementById("expense-amount").value);
         var date = document.getElementById("expense-date").value || todayISO();
         var note = document.getElementById("expense-note").value;
-        var outletId = ruleNo === OUTLET_RULE_NO ? document.getElementById("expense-outlet").value : null;
+        var outletRequired = ruleRequiresOutlet(ruleNo);
+        var outletId = outletRequired ? document.getElementById("expense-outlet").value : null;
 
         if (!category || isNaN(amount) || amount <= 0 || isNaN(ruleNo)) {
             alert("Isi kategori, jenis beban, dan jumlah biaya dengan benar.");
             return;
         }
-        if (ruleNo === OUTLET_RULE_NO && !outletId) {
+        if (outletRequired && !outletId) {
             alert("Pilih outlet untuk biaya yang dibayar dari kas tunai.");
             return;
         }
@@ -232,13 +241,17 @@
                 rule_no: ruleNo, outlet_id: outletId,
             }),
         })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal mencatat biaya"); });
+                return res.json();
+            })
             .then(function () {
                 document.getElementById("expense-category").value = "";
                 document.getElementById("expense-amount").value = "";
                 document.getElementById("expense-note").value = "";
                 reloadAll();
-            });
+            })
+            .catch(function (err) { alert(err.message); });
     }
 
     document.addEventListener("DOMContentLoaded", function () {

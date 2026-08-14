@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.models.db_models import Account
 from app.routers.auth import require_login_api
 from app.services.balance_sheet_service import get_balance_sheet, get_kas_per_outlet, get_profit_loss
 from app.services.chart_of_accounts_service import list_accounts_grouped
@@ -70,15 +71,22 @@ def expenses(
 @router.post("/expenses")
 def create_expense(body: ExpenseCreateRequest, db: Session = Depends(get_db)):
     expense_date = datetime.fromisoformat(body.expense_date)
-    expense = add_expense(
-        db, body.category, body.amount, body.note, expense_date,
-        rule_no=body.rule_no, outlet_id=body.outlet_id,
-    )
+    try:
+        expense = add_expense(
+            db, body.category, body.amount, body.note, expense_date,
+            rule_no=body.rule_no, outlet_id=body.outlet_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return {"id": expense.id}
 
 
 @router.get("/expense-rules")
 def expense_rules(db: Session = Depends(get_db)):
+    rules = list_expense_rules(db)
+    kredit_accounts = {a.kode_akun: a for a in db.query(Account).filter(
+        Account.kode_akun.in_({r.kode_kredit for r in rules})
+    ).all()}
     return [
         {
             "no": r.no,
@@ -87,8 +95,12 @@ def expense_rules(db: Session = Depends(get_db)):
             "nama_akun_debet": r.nama_akun_debet,
             "kode_kredit": r.kode_kredit,
             "nama_akun_kredit": r.nama_akun_kredit,
+            # Data-driven: whether picking this rule must also require an
+            # outlet, derived from the credit account's is_outlet_scoped
+            # flag (e.g. 1111 Kas di Tangan) instead of a hardcoded rule no.
+            "outlet_required": kredit_accounts[r.kode_kredit].is_outlet_scoped,
         }
-        for r in list_expense_rules(db)
+        for r in rules
     ]
 
 

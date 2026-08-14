@@ -352,10 +352,14 @@ def list_journal_entries(db: Session, start: datetime, end: datetime) -> list[Jo
     )
 
 
-# The only 4 rules an Expense can post through (see Expense.rule_no docstring
-# in db_models.py) — used to populate the "Jenis Beban" dropdown from data
-# instead of hardcoding labels/accounts in the template.
-EXPENSE_RULE_NOS = [26, 30, 31, 32]
+# The rules an Expense can post through (see Expense.rule_no docstring in
+# db_models.py) — used to populate the "Jenis Beban" dropdown from data
+# instead of hardcoding labels/accounts in the template. Whether a rule
+# requires an outlet is NOT hardcoded here — it's derived per-rule from the
+# credit account's Account.is_outlet_scoped flag (see expense_rules() in
+# app/routers/financial.py), so adding a future outlet-scoped rule to this
+# list needs no other code change.
+EXPENSE_RULE_NOS = [25, 26, 30, 31, 32]
 
 
 def list_expense_rules(db: Session) -> list[TransactionMappingRule]:
