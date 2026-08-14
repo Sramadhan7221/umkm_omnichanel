@@ -55,7 +55,10 @@ _SETTLEMENT_RULE_BY_CHANNEL_LABEL = {"Shopee": 7, "TikTok Shop": 7, "GrabFood": 
 # Channel label -> rule no, for the retur leg posted on a refunded order.
 # Literal matrix row #19 only names e-commerce; generalized to food delivery
 # per the PO's answer (see module docstring), same rule_no kept for both.
-_RETUR_RULE_BY_CHANNEL_LABEL = {"Shopee": 19, "TikTok Shop": 19, "GrabFood": 19, "GoFood": 19}
+# Offline POS (Epic G) also uses rule #19 for traceability even though its
+# credit account isn't looked up from this map — see
+# post_order_refunded_journal's per-order payment-account resolution below.
+_RETUR_RULE_BY_CHANNEL_LABEL = {"Shopee": 19, "TikTok Shop": 19, "GrabFood": 19, "GoFood": 19, "Offline POS": 19}
 
 # OmniOrderFee.category label -> (debit account code, nearest rule no).
 # Komisi/Biaya Pembayaran/Biaya Layanan all fall under the "biaya layanan/
@@ -183,17 +186,29 @@ def post_journal(
     return entry
 
 
-def _post_cogs(db: Session, order: OmniOrder) -> JournalEntry | None:
-    """Rule #24 — channel-agnostic, shared by every completed-sale path
-    (online order completion and POS Kasir) so the qty x cogs_price logic
-    isn't duplicated."""
-    label = "Nota" if order.channel == "Offline POS" else "Pesanan"
+def _order_label(order: OmniOrder) -> str:
+    return "Nota" if order.channel == "Offline POS" else "Pesanan"
+
+
+def _compute_cogs_total(db: Session, order: OmniOrder) -> float:
+    """qty x cogs_price summed across an order's items — shared by the
+    original COGS posting (rule #24, below) and Epic G's retur stock-recovery
+    reversal (rule #20), so the two always agree on the same amount."""
     cogs_total = 0.0
     for item in order.items:
         product = db.get(Product, item.sku)
         if product is None:
             continue  # SKU not in catalog — same skip-if-missing behavior as deduct_stock_for_order
         cogs_total += item.quantity * product.cogs_price
+    return cogs_total
+
+
+def _post_cogs(db: Session, order: OmniOrder) -> JournalEntry | None:
+    """Rule #24 — channel-agnostic, shared by every completed-sale path
+    (online order completion and POS Kasir) so the qty x cogs_price logic
+    isn't duplicated."""
+    label = _order_label(order)
+    cogs_total = _compute_cogs_total(db, order)
     return post_journal(
         db, kode_debet="5110", kode_kredit="1131", nominal=cogs_total,
         tanggal=order.order_time, sumber_dokumen=f"{label} {order.platform_order_id}",
@@ -233,18 +248,53 @@ def post_order_completed_journal(db: Session, order: OmniOrder) -> list[JournalE
     return [e for e in entries if e is not None]
 
 
-def post_order_refunded_journal(db: Session, order: OmniOrder) -> list[JournalEntry]:
-    channel_enum = _LABEL_TO_CHANNEL[order.channel]
-    receivable_account = CHANNEL_RECEIVABLE_ACCOUNT[channel_enum]
-    rule_no = _RETUR_RULE_BY_CHANNEL_LABEL[order.channel]
+def _pos_original_payment_account(db: Session, order: OmniOrder) -> str:
+    """Offline POS (Epic G) has no single static receivable account per
+    channel the way online orders do (CHANNEL_RECEIVABLE_ACCOUNT) — each
+    nota's payment leg (1111/1122/1113/1112) was chosen per-sale. Reversing
+    a POS retur means crediting whichever account that SPECIFIC nota's sale
+    actually debited, found the same way pos_service.get_receipt resolves
+    the payment method: the original JournalEntry for this order_id whose
+    rule_no is one of the POS payment rules."""
+    original = (
+        db.query(JournalEntry)
+        .filter(JournalEntry.order_id == order.platform_order_id, JournalEntry.rule_no.in_(POS_PAYMENT_RULE_NOS))
+        .one()
+    )
+    return original.kode_debet
 
+
+def post_order_refunded_journal(db: Session, order: OmniOrder) -> list[JournalEntry]:
+    rule_no = _RETUR_RULE_BY_CHANNEL_LABEL[order.channel]
+    if order.channel == "Offline POS":
+        receivable_account = _pos_original_payment_account(db, order)
+    else:
+        channel_enum = _LABEL_TO_CHANNEL[order.channel]
+        receivable_account = CHANNEL_RECEIVABLE_ACCOUNT[channel_enum]
+
+    label = _order_label(order)
     entry = post_journal(
         db, kode_debet="4212", kode_kredit=receivable_account, nominal=order.gross_amount,
-        tanggal=order.updated_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
-        keterangan=f"Retur/pembatalan pesanan {order.channel}",
+        tanggal=order.updated_time, sumber_dokumen=f"{label} {order.platform_order_id}",
+        keterangan=f"Retur/pembatalan {label.lower()} {order.channel}",
         rule_no=rule_no, order_id=order.platform_order_id,
     )
     return [entry] if entry is not None else []
+
+
+def post_retur_stock_recovery_journal(db: Session, order: OmniOrder) -> JournalEntry | None:
+    """Rule #20 — only posted when the returned goods came back in good,
+    resellable condition (Epic G, caller's choice). Reverses exactly the
+    amount rule #24 originally expensed via the shared
+    _compute_cogs_total, so HPP/Persediaan net back to their pre-sale state."""
+    label = _order_label(order)
+    cogs_total = _compute_cogs_total(db, order)
+    return post_journal(
+        db, kode_debet="1131", kode_kredit="5110", nominal=cogs_total,
+        tanggal=order.updated_time, sumber_dokumen=f"{label} {order.platform_order_id}",
+        keterangan=f"Pemulihan stok retur {label.lower()} {order.platform_order_id}",
+        rule_no=20, order_id=order.platform_order_id,
+    )
 
 
 def post_pos_sale_journal(db: Session, order: OmniOrder, rule_no: int) -> list[JournalEntry]:

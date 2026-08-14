@@ -1,22 +1,25 @@
 """
-API routes for the Financial Reports page (Fase 3): Income Statement, Cash
-Flow, and manual Expense entries — all filtered by a start/end date range.
+API routes for the Financial Reports page: Laba Rugi and Neraca (from
+account balances, Epic F), PPh Final accrual/deposit (Epic E), and manual
+Expense entries — filtered by a start/end date range or as_of cutoff.
 """
 
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.routers.auth import require_login_api
+from app.services.balance_sheet_service import get_balance_sheet, get_kas_per_outlet, get_profit_loss
 from app.services.chart_of_accounts_service import list_accounts_grouped
 from app.services.financial_service import (
     add_expense,
-    get_cash_flow,
-    get_income_statement,
+    close_month_pph,
+    get_pph_summary,
     list_expenses,
+    record_pph_deposit,
 )
 from app.services.journal_engine_service import list_expense_rules, list_journal_entries
 
@@ -37,26 +40,6 @@ class ExpenseCreateRequest(BaseModel):
     expense_date: str  # "YYYY-MM-DD"
     rule_no: int
     outlet_id: str | None = None
-
-
-@router.get("/income-statement")
-def income_statement(
-    start: str | None = Query(default=None),
-    end: str | None = Query(default=None),
-    db: Session = Depends(get_db),
-):
-    start_dt, end_dt = _resolve_period(start, end)
-    return get_income_statement(db, start_dt, end_dt)
-
-
-@router.get("/cash-flow")
-def cash_flow(
-    start: str | None = Query(default=None),
-    end: str | None = Query(default=None),
-    db: Session = Depends(get_db),
-):
-    start_dt, end_dt = _resolve_period(start, end)
-    return get_cash_flow(db, start_dt, end_dt)
 
 
 @router.get("/accounts")
@@ -107,6 +90,67 @@ def expense_rules(db: Session = Depends(get_db)):
         }
         for r in list_expense_rules(db)
     ]
+
+
+class CloseMonthRequest(BaseModel):
+    period: str  # "YYYY-MM"
+
+
+class PphDepositRequest(BaseModel):
+    amount: float
+    deposit_date: str  # "YYYY-MM-DD"
+
+
+@router.get("/pph/summary")
+def pph_summary(period: str | None = Query(default=None), db: Session = Depends(get_db)):
+    period = period or f"{datetime.utcnow():%Y-%m}"
+    return get_pph_summary(db, period)
+
+
+@router.post("/pph/close-month")
+def pph_close_month(body: CloseMonthRequest, db: Session = Depends(get_db)):
+    try:
+        entry = close_month_pph(db, body.period)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"no_jurnal": entry.no_jurnal, "nominal": entry.nominal}
+
+
+@router.post("/pph/deposit")
+def pph_deposit(body: PphDepositRequest, db: Session = Depends(get_db)):
+    deposit_date = datetime.fromisoformat(body.deposit_date)
+    try:
+        entry = record_pph_deposit(db, body.amount, deposit_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"no_jurnal": entry.no_jurnal, "nominal": entry.nominal}
+
+
+@router.get("/profit-loss")
+def profit_loss(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    start_dt, end_dt = _resolve_period(start, end)
+    return get_profit_loss(db, start_dt, end_dt)
+
+
+@router.get("/balance-sheet")
+def balance_sheet(
+    as_of: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    # Same "whole day inclusive" convention as _resolve_period's `end` handling.
+    as_of_dt = datetime.fromisoformat(as_of) + timedelta(days=1) if as_of else datetime.utcnow()
+    return get_balance_sheet(db, as_of_dt)
+
+
+@router.get("/kas-per-outlet")
+def kas_per_outlet(db: Session = Depends(get_db)):
+    """Backs the /outlets page's real cash-per-outlet report — see
+    balance_sheet_service.get_kas_per_outlet."""
+    return get_kas_per_outlet(db)
 
 
 @router.get("/journal")

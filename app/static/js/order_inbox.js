@@ -109,6 +109,18 @@
             });
     }
 
+    function returSectionHtml(o) {
+        if (o.status !== "Selesai") return "";
+        return "<hr>" +
+            "<h6>Proses Retur</h6>" +
+            "<div class='form-check mb-2'>" +
+            "<input class='form-check-input' type='checkbox' id='retur-restore-stock'>" +
+            "<label class='form-check-label' for='retur-restore-stock'>Barang kembali dalam kondisi baik (kembalikan ke stok)</label>" +
+            "</div>" +
+            "<button class='btn btn-danger btn-sm' id='btn-process-retur' data-name='" + o.platform_order_id + "'>" +
+            "<i class='ri-arrow-go-back-line align-middle'></i> Proses Retur</button>";
+    }
+
     function showOrderDetail(name) {
         var modalBody = document.getElementById("order-detail-body");
         modalBody.innerHTML = '<div class="text-center text-muted py-4">Memuat...</div>';
@@ -142,7 +154,32 @@
                     "<table class='table table-sm'><thead><tr><th>Kategori</th><th>Jumlah</th><th>Label Asli Platform</th></tr></thead><tbody>" +
                     feesHtml + "</tbody></table>" +
                     "<div class='text-end'><strong>Kotor: " + formatRupiah(o.gross_amount) +
-                    " &nbsp;|&nbsp; Bersih: " + formatRupiah(o.net_amount) + "</strong></div>";
+                    " &nbsp;|&nbsp; Bersih: " + formatRupiah(o.net_amount) + "</strong></div>" +
+                    returSectionHtml(o);
+            });
+    }
+
+    function processRetur(platformOrderId) {
+        var restoreStock = document.getElementById("retur-restore-stock").checked;
+        var btn = document.getElementById("btn-process-retur");
+        btn.disabled = true;
+
+        fetch(API_BASE + "order/" + encodeURIComponent(platformOrderId) + "/process-retur", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ restore_stock: restoreStock }),
+        })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal memproses retur"); });
+                return res.json();
+            })
+            .then(function () {
+                bootstrap.Modal.getInstance(document.getElementById("order-detail-modal")).hide();
+                loadOrderInbox();
+            })
+            .catch(function (err) {
+                alert(err.message);
+                btn.disabled = false;
             });
     }
 
@@ -191,6 +228,11 @@
         document.getElementById("order-inbox-datatable").addEventListener("click", function (e) {
             var btn = e.target.closest(".btn-detail");
             if (btn) showOrderDetail(btn.getAttribute("data-name"));
+        });
+
+        document.getElementById("order-detail-body").addEventListener("click", function (e) {
+            var btn = e.target.closest("#btn-process-retur");
+            if (btn) processRetur(btn.getAttribute("data-name"));
         });
     });
 })();

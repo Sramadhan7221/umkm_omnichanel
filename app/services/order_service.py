@@ -5,10 +5,13 @@ controller's upsert_from_canonical — same label maps, same logic, just
 SQLAlchemy instead of frappe.get_doc/frappe.new_doc.
 """
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from app.models.canonical import CanonicalOrder
 from app.models.db_models import OmniOrder, OmniOrderFee, OmniOrderItem
+from app.services.inventory_service import restore_stock_for_order
 
 CHANNEL_LABELS = {
     # Nama platform/brand tetap dalam bahasa aslinya, tidak diterjemahkan.
@@ -92,3 +95,36 @@ def upsert_from_canonical(db: Session, order: CanonicalOrder) -> OmniOrder:
     db.commit()
     db.refresh(db_order)
     return db_order
+
+
+def process_retur(db: Session, platform_order_id: str, restore_stock: bool) -> OmniOrder:
+    """Epic G — a real status transition (not just flipping a field): only
+    a completed order has revenue/HPP to reverse in the first place.
+    journal_engine_service is imported inside the function (not at module
+    top) because it imports CHANNEL_LABELS from this module — a top-level
+    import here would create a circular import."""
+    from app.services.journal_engine_service import (
+        post_order_refunded_journal,
+        post_retur_stock_recovery_journal,
+    )
+
+    order = db.get(OmniOrder, platform_order_id)
+    if order is None:
+        raise ValueError(f"Pesanan '{platform_order_id}' tidak ditemukan")
+    if order.status == STATUS_LABELS["refunded"]:
+        raise ValueError("Pesanan ini sudah diretur sebelumnya")
+    if order.status != STATUS_LABELS["completed"]:
+        raise ValueError("Hanya pesanan berstatus Selesai yang bisa diretur")
+
+    order.status = STATUS_LABELS["refunded"]
+    order.updated_time = datetime.utcnow()
+    db.commit()
+    db.refresh(order)
+
+    post_order_refunded_journal(db, order)
+
+    if restore_stock:
+        restore_stock_for_order(db, order)
+        post_retur_stock_recovery_journal(db, order)
+
+    return order

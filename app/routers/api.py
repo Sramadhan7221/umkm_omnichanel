@@ -9,6 +9,7 @@ adapter's hardcoded sample list — so toggling a platform on/off in
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -21,7 +22,7 @@ from app.models.db_models import OmniOrder
 from app.routers.auth import require_login_api
 from app.services.inventory_service import deduct_stock_for_order, get_products_for_channel
 from app.services.journal_engine_service import post_order_completed_journal, post_order_refunded_journal
-from app.services.order_service import upsert_from_canonical
+from app.services.order_service import process_retur, upsert_from_canonical
 from app.services.platform_service import list_active_platforms
 
 router = APIRouter(prefix="/api", tags=["orders"], dependencies=[Depends(require_login_api)])
@@ -140,3 +141,19 @@ def get_order_detail(platform_order_id: str, db: Session = Depends(get_db)):
             for f in o.fees
         ],
     }
+
+
+class ProcessReturRequest(BaseModel):
+    restore_stock: bool = False
+
+
+@router.post("/order/{platform_order_id}/process-retur")
+def process_retur_endpoint(platform_order_id: str, body: ProcessReturRequest, db: Session = Depends(get_db)):
+    """Epic G — flips a completed order to Dikembalikan, posts the rule #19
+    revenue reversal, and (if the goods came back sellable) rule #20's
+    stock/HPP recovery. See app.services.order_service.process_retur."""
+    try:
+        order = process_retur(db, platform_order_id, restore_stock=body.restore_stock)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"platform_order_id": order.platform_order_id, "status": order.status}

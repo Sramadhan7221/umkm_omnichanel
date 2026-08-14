@@ -67,6 +67,13 @@ async def financial(request: Request):
     return templates.TemplateResponse(request, "financial.html", _user_context(request))
 
 
+@router.get("/neraca")
+async def neraca(request: Request):
+    if not is_logged_in(request):
+        return RedirectResponse(url="/login")
+    return templates.TemplateResponse(request, "balance_sheet.html", _user_context(request))
+
+
 @router.get("/reconciliation")
 async def reconciliation(request: Request):
     if not is_logged_in(request):

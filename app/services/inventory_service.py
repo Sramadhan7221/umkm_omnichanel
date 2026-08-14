@@ -156,6 +156,28 @@ def deduct_stock_for_order(db: Session, order: CanonicalOrder) -> None:
         _push_stock_to_platforms(product)
 
 
+def restore_stock_for_order(db: Session, order) -> None:
+    """Mirror of deduct_stock_for_order — Epic G's retur flow, called only
+    when the returned goods came back in good, resellable condition. Takes
+    the persisted OmniOrder (not a CanonicalOrder) since retur always acts
+    on an order that already exists."""
+    for item in order.items:
+        product = db.get(Product, item.sku)
+        if product is None:
+            continue
+
+        change = item.quantity
+        product.stock_qty += change
+        product.updated_time = datetime.utcnow()
+        db.add(StockMovement(
+            sku=product.sku, change_qty=change, resulting_qty=product.stock_qty,
+            source="retur", note=f"Retur {order.platform_order_id}",
+        ))
+        db.commit()
+        db.refresh(product)
+        _push_stock_to_platforms(product)
+
+
 def adjust_stock(db: Session, sku: str, new_qty: int, note: str = "") -> Product:
     """Override manual (mis. hasil stok opname)."""
     product = db.get(Product, sku)

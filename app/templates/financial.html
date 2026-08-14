@@ -106,6 +106,13 @@
                     </li>
 
                     <li class="side-nav-item">
+                        <a href="/neraca" class="side-nav-link">
+                            <i class="ri-scales-3-line"></i>
+                            <span> Neraca</span>
+                        </a>
+                    </li>
+
+                    <li class="side-nav-item">
                         <a href="/reconciliation" class="side-nav-link">
                             <i class="ri-git-merge-line"></i>
                             <span> Rekonsiliasi</span>
@@ -155,27 +162,27 @@
                         <div class="col-xl-3 col-md-6">
                             <div class="card">
                                 <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Pendapatan Kotor</p>
-                                    <h3 class="my-1" id="stat-gross">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span id="stat-order-count">0 pesanan</span></p>
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Pendapatan</p>
+                                    <h3 class="my-1" id="stat-revenue">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Neto setelah potongan &amp; retur</span></p>
                                 </div>
                             </div>
                         </div>
                         <div class="col-xl-3 col-md-6">
                             <div class="card">
                                 <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Total Biaya Platform</p>
-                                    <h3 class="my-1" id="stat-fees">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span>Komisi + biaya lainnya</span></p>
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">HPP</p>
+                                    <h3 class="my-1" id="stat-hpp">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Harga Pokok Penjualan</span></p>
                                 </div>
                             </div>
                         </div>
                         <div class="col-xl-3 col-md-6">
                             <div class="card">
                                 <div class="card-body">
-                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Pendapatan Bersih</p>
-                                    <h3 class="my-1" id="stat-net">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span>Setelah biaya platform</span></p>
+                                    <p class="text-muted mb-1 fw-semibold text-uppercase">Laba Kotor</p>
+                                    <h3 class="my-1" id="stat-gross-profit">Rp 0</h3>
+                                    <p class="mb-0 text-muted"><span>Pendapatan - HPP</span></p>
                                 </div>
                             </div>
                         </div>
@@ -184,36 +191,7 @@
                                 <div class="card-body">
                                     <p class="text-muted mb-1 fw-semibold text-uppercase">Laba Bersih</p>
                                     <h3 class="my-1" id="stat-profit">Rp 0</h3>
-                                    <p class="mb-0 text-muted"><span>Setelah biaya operasional</span></p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-lg-6">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title">Rincian Biaya Platform</h4>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm" id="fee-breakdown-table">
-                                        <thead><tr><th>Kategori</th><th class="text-end">Jumlah</th></tr></thead>
-                                        <tbody></tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title">Kinerja per Platform</h4>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm" id="channel-breakdown-table">
-                                        <thead><tr><th>Platform</th><th class="text-end">Pesanan</th><th class="text-end">Kotor</th><th class="text-end">Bersih</th></tr></thead>
-                                        <tbody></tbody>
-                                    </table>
+                                    <p class="mb-0 text-muted"><span>Setelah beban operasional</span></p>
                                 </div>
                             </div>
                         </div>
@@ -223,16 +201,56 @@
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
-                                    <h4 class="card-title">Arus Kas Harian</h4>
-                                    <p class="text-muted mb-0">Kas masuk = pendapatan bersih pesanan pada hari itu. Kas keluar = biaya operasional yang dicatat pada hari itu.</p>
+                                    <h4 class="card-title">Rincian Beban Operasional</h4>
                                 </div>
                                 <div class="card-body">
-                                    <table id="cashflow-datatable" class="table table-striped dt-responsive nowrap w-100">
-                                        <thead>
-                                            <tr><th>Tanggal</th><th>Kas Masuk</th><th>Kas Keluar</th><th>Kas Bersih</th></tr>
-                                        </thead>
+                                    <table class="table table-sm" id="beban-breakdown-table">
+                                        <thead><tr><th>Akun</th><th class="text-end">Jumlah</th></tr></thead>
                                         <tbody></tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">PPh Final UMKM 0,5%</h4>
+                                    <div>
+                                        <input type="month" class="form-control form-control-sm d-inline-block w-auto" id="pph-period">
+                                    </div>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row text-center mb-3">
+                                        <div class="col-6">
+                                            <p class="text-muted mb-1">Estimasi PPh Bulan Ini</p>
+                                            <h4 id="pph-estimate">Rp 0</h4>
+                                        </div>
+                                        <div class="col-6">
+                                            <p class="text-muted mb-1">Utang PPh Belum Disetor</p>
+                                            <h4 id="pph-outstanding">Rp 0</h4>
+                                        </div>
+                                    </div>
+                                    <p class="mb-3">Status: <span class="badge bg-secondary" id="pph-status">-</span></p>
+                                    <button class="btn btn-primary btn-sm" id="btn-close-month-pph">
+                                        <i class="ri-lock-line align-middle"></i> Tutup Buku Bulan Ini
+                                    </button>
+                                    <hr>
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-5">
+                                            <label class="form-label">Jumlah Disetor (Rp)</label>
+                                            <input type="number" class="form-control" id="pph-deposit-amount" min="0">
+                                        </div>
+                                        <div class="col-4">
+                                            <label class="form-label">Tanggal Setor</label>
+                                            <input type="date" class="form-control" id="pph-deposit-date">
+                                        </div>
+                                        <div class="col-3">
+                                            <button class="btn btn-success w-100" id="btn-deposit-pph">Catat Setor</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

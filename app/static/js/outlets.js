@@ -9,6 +9,27 @@
 
     var API_BASE = "/api/outlets";
 
+    function formatRupiah(amount) {
+        var n = Number(amount || 0);
+        return "Rp " + n.toLocaleString("id-ID", { maximumFractionDigits: 0 });
+    }
+
+    function loadKasPerOutlet() {
+        return fetch("/api/financial/kas-per-outlet")
+            .then(function (res) { return res.json(); })
+            .then(function (rows) {
+                var body = document.querySelector("#kas-per-outlet-table tbody");
+                body.innerHTML = rows.length
+                    ? rows.map(function (r) {
+                        return "<tr><td>" + r.nama_outlet + "</td><td class='text-end'>" + formatRupiah(r.saldo) + "</td></tr>";
+                    }).join("")
+                    : "<tr><td colspan='2' class='text-muted'>Belum ada outlet.</td></tr>";
+
+                var total = rows.reduce(function (sum, r) { return sum + r.saldo; }, 0);
+                document.getElementById("kas-per-outlet-total").textContent = formatRupiah(total);
+            });
+    }
+
     function renderOutlets(outlets) {
         var container = document.getElementById("outlet-list");
         container.innerHTML = outlets.map(function (o) {
@@ -65,6 +86,7 @@
     document.addEventListener("DOMContentLoaded", function () {
         if (window.lucide) lucide.createIcons();
         loadOutlets();
+        loadKasPerOutlet();
 
         document.getElementById("outlet-list").addEventListener("change", function (e) {
             var checkbox = e.target.closest(".outlet-toggle");
@@ -94,6 +116,7 @@
                 var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                 modal.hide();
                 loadOutlets();
+                loadKasPerOutlet();
             });
         });
     });

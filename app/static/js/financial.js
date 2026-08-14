@@ -8,7 +8,6 @@
     "use strict";
 
     var API_BASE = "/api/financial";
-    var cashflowTable = null;
     var journalTable = null;
     var OUTLET_RULE_NO = 31; // "Gaji/Upah Tunai" — the only expense rule crediting an outlet-scoped account (1111)
 
@@ -29,67 +28,23 @@
         return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
     }
 
-    function loadIncomeStatement() {
+    function loadProfitLoss() {
         var p = periodDates();
-        return fetch(API_BASE + "/income-statement?start=" + p.start + "&end=" + p.end)
+        return fetch(API_BASE + "/profit-loss?start=" + p.start + "&end=" + p.end)
             .then(function (res) { return res.json(); })
             .then(function (data) {
-                document.getElementById("stat-gross").textContent = formatRupiah(data.gross_revenue);
-                document.getElementById("stat-order-count").textContent = data.order_count + " pesanan";
-                document.getElementById("stat-fees").textContent = formatRupiah(data.total_fees);
-                document.getElementById("stat-net").textContent = formatRupiah(data.net_revenue);
-                document.getElementById("stat-profit").textContent = formatRupiah(data.net_profit);
+                document.getElementById("stat-revenue").textContent = formatRupiah(data.total_pendapatan);
+                document.getElementById("stat-hpp").textContent = formatRupiah(data.hpp);
+                document.getElementById("stat-gross-profit").textContent = formatRupiah(data.laba_kotor);
+                document.getElementById("stat-profit").textContent = formatRupiah(data.laba_bersih);
 
-                var feeBody = document.querySelector("#fee-breakdown-table tbody");
-                var feeEntries = Object.entries(data.fees_by_category);
-                feeBody.innerHTML = feeEntries.length
-                    ? feeEntries.map(function (entry) {
-                        return "<tr><td>" + entry[0] + "</td><td class='text-end'>" + formatRupiah(entry[1]) + "</td></tr>";
+                var bebanBody = document.querySelector("#beban-breakdown-table tbody");
+                bebanBody.innerHTML = data.beban_operasional_breakdown.length
+                    ? data.beban_operasional_breakdown.map(function (item) {
+                        return "<tr><td>" + item.kode_akun + " - " + item.nama_akun +
+                            "</td><td class='text-end'>" + formatRupiah(item.jumlah) + "</td></tr>";
                     }).join("")
-                    : "<tr><td colspan='2' class='text-muted'>Tidak ada data pada periode ini.</td></tr>";
-
-                var channelBody = document.querySelector("#channel-breakdown-table tbody");
-                channelBody.innerHTML = data.channel_breakdown.length
-                    ? data.channel_breakdown.map(function (c) {
-                        return "<tr><td>" + c.channel + "</td><td class='text-end'>" + c.count +
-                            "</td><td class='text-end'>" + formatRupiah(c.gross) +
-                            "</td><td class='text-end'>" + formatRupiah(c.net) + "</td></tr>";
-                    }).join("")
-                    : "<tr><td colspan='4' class='text-muted'>Tidak ada data pada periode ini.</td></tr>";
-            });
-    }
-
-    function loadCashFlow() {
-        var p = periodDates();
-        return fetch(API_BASE + "/cash-flow?start=" + p.start + "&end=" + p.end)
-            .then(function (res) { return res.json(); })
-            .then(function (rows) {
-                var tableRows = rows.map(function (r) {
-                    return [r.date, formatRupiah(r.cash_in), formatRupiah(r.cash_out), formatRupiah(r.net)];
-                });
-
-                if (cashflowTable) {
-                    cashflowTable.clear();
-                    cashflowTable.rows.add(tableRows);
-                    cashflowTable.draw();
-                } else {
-                    cashflowTable = $("#cashflow-datatable").DataTable({
-                        data: tableRows,
-                        columns: [
-                            { title: "Tanggal" }, { title: "Kas Masuk" }, { title: "Kas Keluar" }, { title: "Kas Bersih" },
-                        ],
-                        order: [[0, "desc"]],
-                        responsive: true,
-                        language: {
-                            search: "Cari:",
-                            lengthMenu: "Tampilkan _MENU_ data",
-                            info: "Menampilkan _START_ - _END_ dari _TOTAL_ data",
-                            infoEmpty: "Tidak ada data",
-                            zeroRecords: "Data tidak ditemukan",
-                            paginate: { first: "Pertama", last: "Terakhir", next: "Berikutnya", previous: "Sebelumnya" },
-                        },
-                    });
-                }
+                    : "<tr><td colspan='2' class='text-muted'>Tidak ada beban pada periode ini.</td></tr>";
             });
     }
 
@@ -132,6 +87,73 @@
                     });
                 }
             });
+    }
+
+    function currentPeriod() {
+        return document.getElementById("pph-period").value || todayISO().slice(0, 7);
+    }
+
+    function loadPphSummary() {
+        return fetch(API_BASE + "/pph/summary?period=" + currentPeriod())
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                document.getElementById("pph-estimate").textContent = formatRupiah(data.estimated_pph);
+                document.getElementById("pph-outstanding").textContent = formatRupiah(data.outstanding_utang);
+
+                var badge = document.getElementById("pph-status");
+                badge.textContent = data.status;
+                badge.className = "badge " + (
+                    data.status === "Sudah Disetor" ? "bg-success" :
+                    data.status === "Belum Disetor" ? "bg-warning" : "bg-secondary"
+                );
+
+                var closeBtn = document.getElementById("btn-close-month-pph");
+                closeBtn.disabled = data.is_accrued;
+                closeBtn.textContent = data.is_accrued ? "Sudah Ditutup Buku" : "Tutup Buku Bulan Ini";
+            });
+    }
+
+    function closeMonthPph() {
+        fetch(API_BASE + "/pph/close-month", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ period: currentPeriod() }),
+        })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal tutup buku"); });
+                return res.json();
+            })
+            .then(function () {
+                loadPphSummary();
+                loadJournal();
+            })
+            .catch(function (err) { alert(err.message); });
+    }
+
+    function depositPph() {
+        var amount = parseFloat(document.getElementById("pph-deposit-amount").value);
+        var date = document.getElementById("pph-deposit-date").value || todayISO();
+
+        if (isNaN(amount) || amount <= 0) {
+            alert("Isi jumlah setoran dengan benar.");
+            return;
+        }
+
+        fetch(API_BASE + "/pph/deposit", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ amount: amount, deposit_date: date }),
+        })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal mencatat setoran"); });
+                return res.json();
+            })
+            .then(function () {
+                document.getElementById("pph-deposit-amount").value = "";
+                loadPphSummary();
+                loadJournal();
+            })
+            .catch(function (err) { alert(err.message); });
     }
 
     function loadExpenseRules() {
@@ -180,8 +202,7 @@
     }
 
     function reloadAll() {
-        loadIncomeStatement();
-        loadCashFlow();
+        loadProfitLoss();
         loadExpenses();
         loadJournal();
     }
@@ -223,13 +244,19 @@
     document.addEventListener("DOMContentLoaded", function () {
         if (window.lucide) lucide.createIcons();
         document.getElementById("expense-date").value = todayISO();
+        document.getElementById("pph-period").value = todayISO().slice(0, 7);
+        document.getElementById("pph-deposit-date").value = todayISO();
 
         loadExpenseRules();
         loadOutletOptions();
+        loadPphSummary();
         reloadAll();
 
         document.getElementById("period-select").addEventListener("change", reloadAll);
         document.getElementById("btn-add-expense").addEventListener("click", addExpense);
         document.getElementById("expense-rule").addEventListener("change", toggleOutletField);
+        document.getElementById("pph-period").addEventListener("change", loadPphSummary);
+        document.getElementById("btn-close-month-pph").addEventListener("click", closeMonthPph);
+        document.getElementById("btn-deposit-pph").addEventListener("click", depositPph);
     });
 })();
