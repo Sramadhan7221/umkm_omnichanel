@@ -1,0 +1,42 @@
+DAFTAR AKUN / CHART OF ACCOUNTS (CoA),,,,
+"Kategori Keuangan Terintegrasi E-Commerce, POS & Multi-Platform (Versi Bahasa Awam SAK EMKM)",,,,
+,,,,
+Kode Akun,Nama Akun (Standar Akuntansi),Penjelasan Sederhana (Bahasa Awam),Kelompok Utama,Saldo Normal
+1000,ASET,Header Utama Harta & Aset Bisnis,Aset,-
+1111,Kas di Tangan / Admin,Uang tunai fisik di kasir / pegangan admin toko,Aset Lancar,Debet
+1112,Kas di E-Wallet,"Saldo digital aktif (Gopay, OVO, ShopeePay, DANA)",Aset Lancar,Debet
+1113,Kas di Bank,Uang simpanan di rekening bank operasional usaha,Aset Lancar,Debet
+1121,Piutang Penjualan E-Commerce,Uang hasil penjualan e-commerce yang masih TERTAHAN di Shopee/Tokped/TikTok,Aset Lancar,Debet
+1122,Piutang Transaksi POS / QRIS,Uang transaksi QRIS toko yang belum masuk/cair ke bank (settlement H+1),Aset Lancar,Debet
+1123,Piutang Aplikasi Food Delivery,Uang penjualan GoFood/GrabFood/ShopeeFood yang belum ditransfer,Aset Lancar,Debet
+1124,Piutang Komisi Affiliate,Komisi promosi produk dari affiliate yang belum dicairkan,Aset Lancar,Debet
+1125,Piutang Platform Produk Digital,Hasil penjualan produk digital di Lynk.id/Web yang belum masuk bank,Aset Lancar,Debet
+1131,Persediaan Produk Jadi,Nilai total barang/stok siap jual yang ada di toko/gudang,Persediaan,Debet
+2000,KEWAJIBAN,Header Utama Hutang,Kewajiban ,-
+2110,Utang Usaha,Hutang pembelian barang/bahan baku ke supplier/pemasok,Kewajiban,Kredit
+2140,"Utang PPh Final 0,5%","Tagihan Pajak UMKM 0,5% yang belum disetor ke kas negara",Kewajiban Pajak,Kredit
+3000,MODAL,Header Utama Modal,Ekuitas,-
+3110,Modal Pemilik,Uang/modal awal milik pribadi yang disetor ke bisnis,Ekuitas,Kredit
+4000,PENDAPATAN / OMSET,Header Utama Total Penjualan & Masukan Usaha,Pendapatan,-
+4111,Pendapatan Usaha - Shopee,Total omset penjualan kotor dari channel Shopee,Pendapatan Usaha,Kredit
+4112,Pendapatan Usaha - Tokopedia,Total omset penjualan kotor dari channel Tokopedia,Pendapatan Usaha,Kredit
+4113,Pendapatan Usaha - TikTokShop,Total omset penjualan kotor dari TikTok Shop,Pendapatan Usaha,Kredit
+4114,Pendapatan Usaha - Offline,"Total penjualan tunai, QRIS, & nota langsung toko fisik",Pendapatan Usaha,Kredit
+4115,Pendapatan Usaha - Food Delivery,Total penjualan kotor dari GoFood / GrabFood / ShopeeFood,Pendapatan Usaha,Kredit
+4116,Pendapatan Produk Digital,"Total penjualan e-book, modul, kursus, & komisi affiliate",Pendapatan Usaha,Kredit
+4211,Potongan Penjualan,Diskon / voucher toko yang ditanggung penjual,Kontra Pendapatan,Debet
+4212,Retur Penjualan,Pengembalian barang dari pembeli yang disetujui,Kontra Pendapatan,Debet
+5000,BEBAN / BIAYA OPERASIONAL,Header Utama Pengeluaran & Biaya Operasional Bisnis,Beban,-
+5110,HPP Produk,Modal/harga pokok dari barang yang laku terjual,Beban Pokok,Debet
+5120,Beban Pengemasan,"Biaya bahan kemas (kardus, bubble wrap, lakban)",Beban Pokok,Debet
+5211,Beban Iklan,"Biaya pasang iklan di Shopee Ads, TikTok Ads, FB/IG Ads",Beban Digital,Debet
+5212,Beban Komisi Admin / Platform,Biaya komisi / admin fee yang dipotong otomatis oleh marketplace/app,Beban Digital,Debet
+5213,Beban Ongkir,Biaya pengiriman yang dipotong/ditanggung oleh penjual,Beban Digital,Debet
+5214,Beban Layanan Aplikasi,Biaya langganan bulanan software kasir/POS & SaaS,Beban Operasional,Debet
+5215,Beban Adm Bank & Potongan QRIS,"Potongan MDR QRIS, biaya transfer, dan admin bank",Beban Digital,Debet
+5216,Beban Bagi Hasil & Komisi Affiliate,Komisi bagi hasil yang dibayarkan kepada creator affiliate,Beban Digital,Debet
+5217,"Beban Konten, Promo & Sampel",Pengeluaran produk sampel/endorsement & pembuatan konten,Beban Pemasaran,Debet
+5218,Selisih Penyesuaian Rekonsiliasi Platform,Selisih pembulatan/pembatalan kecil saat rekonsiliasi e-commerce,Beban Operasional,Debet
+5310,Beban Gaji & Upah Karyawan,"Pembayaran gaji bulanan, upah harian, bonus, atau lembur tim/staf",Beban Operasional,Debet
+5320,Beban Operasional & Perlengkapan Kantor,"Pengeluaran rutin kantor/toko (Listrik, Air, Wifi, ATK, Kebersihan, Sewa)",Beban Operasional,Debet
+5410,Beban Pajak Penghasilan Final,"Biaya Pajak UMKM 0,5% dari omset bulanan",Beban Pajak,Debet

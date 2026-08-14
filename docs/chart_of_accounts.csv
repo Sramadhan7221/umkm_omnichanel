@@ -1,0 +1,39 @@
+kode_akun,nama_akun,penjelasan_awam,kelompok_utama,saldo_normal,parent_code,is_header,is_outlet_scoped
+1000,ASET,Header Utama Harta & Aset Bisnis,Aset,,,true,false
+1111,Kas di Tangan / Admin,Uang tunai fisik di kasir / pegangan admin toko,Aset,Debet,1000,false,true
+1112,Kas di E-Wallet,"Saldo digital aktif (Gopay, OVO, ShopeePay, DANA)",Aset,Debet,1000,false,false
+1113,Kas di Bank,Uang simpanan di rekening bank operasional usaha,Aset,Debet,1000,false,false
+1121,Piutang Penjualan E-Commerce,Uang hasil penjualan e-commerce yang masih TERTAHAN di Shopee/Tokped/TikTok,Aset,Debet,1000,false,false
+1122,Piutang Transaksi POS / QRIS,Uang transaksi QRIS toko yang belum masuk/cair ke bank (settlement H+1),Aset,Debet,1000,false,false
+1123,Piutang Aplikasi Food Delivery,Uang penjualan GoFood/GrabFood/ShopeeFood yang belum ditransfer,Aset,Debet,1000,false,false
+1124,Piutang Komisi Affiliate,Komisi promosi produk dari affiliate yang belum dicairkan,Aset,Debet,1000,false,false
+1125,Piutang Platform Produk Digital,Hasil penjualan produk digital di Lynk.id/Web yang belum masuk bank,Aset,Debet,1000,false,false
+1131,Persediaan Produk Jadi,Nilai total barang/stok siap jual yang ada di toko/gudang,Aset,Debet,1000,false,false
+2000,KEWAJIBAN,Header Utama Hutang,Kewajiban,,,true,false
+2110,Utang Usaha,Hutang pembelian barang/bahan baku ke supplier/pemasok,Kewajiban,Kredit,2000,false,false
+2140,"Utang PPh Final 0,5%","Tagihan Pajak UMKM 0,5% yang belum disetor ke kas negara",Kewajiban,Kredit,2000,false,false
+3000,MODAL,Header Utama Modal,Ekuitas,,,true,false
+3110,Modal Pemilik,Uang/modal awal milik pribadi yang disetor ke bisnis,Ekuitas,Kredit,3000,false,false
+4000,PENDAPATAN / OMSET,Header Utama Total Penjualan & Masukan Usaha,Pendapatan,,,true,false
+4111,Pendapatan Usaha - Shopee,Total omset penjualan kotor dari channel Shopee,Pendapatan,Kredit,4000,false,false
+4112,Pendapatan Usaha - Tokopedia,Total omset penjualan kotor dari channel Tokopedia,Pendapatan,Kredit,4000,false,false
+4113,Pendapatan Usaha - TikTokShop,Total omset penjualan kotor dari TikTok Shop,Pendapatan,Kredit,4000,false,false
+4114,Pendapatan Usaha - Offline,"Total penjualan tunai, QRIS, & nota langsung toko fisik",Pendapatan,Kredit,4000,false,false
+4115,Pendapatan Usaha - Food Delivery,Total penjualan kotor dari GoFood / GrabFood / ShopeeFood,Pendapatan,Kredit,4000,false,false
+4116,Pendapatan Produk Digital,"Total penjualan e-book, modul, kursus, & komisi affiliate",Pendapatan,Kredit,4000,false,false
+4211,Potongan Penjualan,Diskon / voucher toko yang ditanggung penjual,Pendapatan,Debet,4000,false,false
+4212,Retur Penjualan,Pengembalian barang dari pembeli yang disetujui,Pendapatan,Debet,4000,false,false
+5000,BEBAN / BIAYA OPERASIONAL,Header Utama Pengeluaran & Biaya Operasional Bisnis,Beban,,,true,false
+5110,HPP Produk,Modal/harga pokok dari barang yang laku terjual,Beban,Debet,5000,false,false
+5120,Beban Pengemasan,"Biaya bahan kemas (kardus, bubble wrap, lakban)",Beban,Debet,5000,false,false
+5211,Beban Iklan,"Biaya pasang iklan di Shopee Ads, TikTok Ads, FB/IG Ads",Beban,Debet,5000,false,false
+5212,Beban Komisi Admin / Platform,Biaya komisi / admin fee yang dipotong otomatis oleh marketplace/app,Beban,Debet,5000,false,false
+5213,Beban Ongkir,Biaya pengiriman yang dipotong/ditanggung oleh penjual,Beban,Debet,5000,false,false
+5214,Beban Layanan Aplikasi,Biaya langganan bulanan software kasir/POS & SaaS,Beban,Debet,5000,false,false
+5215,Beban Adm Bank & Potongan QRIS,"Potongan MDR QRIS, biaya transfer, dan admin bank",Beban,Debet,5000,false,false
+5216,Beban Bagi Hasil & Komisi Affiliate,Komisi bagi hasil yang dibayarkan kepada creator affiliate,Beban,Debet,5000,false,false
+5217,"Beban Konten, Promo & Sampel",Pengeluaran produk sampel/endorsement & pembuatan konten,Beban,Debet,5000,false,false
+5218,Selisih Penyesuaian Rekonsiliasi Platform,Selisih pembulatan/pembatalan kecil saat rekonsiliasi e-commerce,Beban,Debet,5000,false,false
+5310,Beban Gaji & Upah Karyawan,"Pembayaran gaji bulanan, upah harian, bonus, atau lembur tim/staf",Beban,Debet,5000,false,false
+5320,Beban Operasional & Perlengkapan Kantor,"Pengeluaran rutin kantor/toko (Listrik, Air, Wifi, ATK, Kebersihan, Sewa)",Beban,Debet,5000,false,false
+5410,Beban Pajak Penghasilan Final,"Biaya Pajak UMKM 0,5% dari omset bulanan",Beban,Debet,5000,false,false
