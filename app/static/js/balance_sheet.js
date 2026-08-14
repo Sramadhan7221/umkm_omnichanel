@@ -70,6 +70,11 @@
             });
     }
 
+    function exportBalanceSheet(format) {
+        var asOf = document.getElementById("as-of-date").value || todayISO();
+        window.location.href = "/api/financial/balance-sheet/export?as_of=" + asOf + "&format=" + format;
+    }
+
     document.addEventListener("DOMContentLoaded", function () {
         if (window.lucide) lucide.createIcons();
         document.getElementById("as-of-date").value = todayISO();
@@ -77,5 +82,11 @@
         loadBalanceSheet();
 
         document.getElementById("as-of-date").addEventListener("change", loadBalanceSheet);
+        document.getElementById("btn-export-bs-xlsx").addEventListener("click", function (e) {
+            e.preventDefault(); exportBalanceSheet("xlsx");
+        });
+        document.getElementById("btn-export-bs-pdf").addEventListener("click", function (e) {
+            e.preventDefault(); exportBalanceSheet("pdf");
+        });
     });
 })();

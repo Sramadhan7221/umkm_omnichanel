@@ -7,6 +7,7 @@ Expense entries — filtered by a start/end date range or as_of cutoff.
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from app.models.db_models import Account
 from app.routers.auth import require_login_api
 from app.services.balance_sheet_service import get_balance_sheet, get_kas_per_outlet, get_profit_loss
 from app.services.chart_of_accounts_service import list_accounts_grouped
+from app.services.export_service import export_balance_sheet, export_journal, export_profit_loss
 from app.services.financial_service import (
     add_expense,
     close_month_pph,
@@ -148,6 +150,23 @@ def profit_loss(
     return get_profit_loss(db, start_dt, end_dt)
 
 
+@router.get("/profit-loss/export")
+def profit_loss_export(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    format: str = Query(default="pdf"),
+    db: Session = Depends(get_db),
+):
+    start_dt, end_dt = _resolve_period(start, end)
+    data = get_profit_loss(db, start_dt, end_dt)
+    try:
+        content, media_type, ext = export_profit_loss(data, format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    filename = f"laba_rugi_{start_dt.date()}_{end_dt.date()}.{ext}"
+    return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
 @router.get("/balance-sheet")
 def balance_sheet(
     as_of: str | None = Query(default=None),
@@ -156,6 +175,22 @@ def balance_sheet(
     # Same "whole day inclusive" convention as _resolve_period's `end` handling.
     as_of_dt = datetime.fromisoformat(as_of) + timedelta(days=1) if as_of else datetime.utcnow()
     return get_balance_sheet(db, as_of_dt)
+
+
+@router.get("/balance-sheet/export")
+def balance_sheet_export(
+    as_of: str | None = Query(default=None),
+    format: str = Query(default="pdf"),
+    db: Session = Depends(get_db),
+):
+    as_of_dt = datetime.fromisoformat(as_of) + timedelta(days=1) if as_of else datetime.utcnow()
+    data = get_balance_sheet(db, as_of_dt)
+    try:
+        content, media_type, ext = export_balance_sheet(data, format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    filename = f"neraca_{as_of_dt.date()}.{ext}"
+    return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @router.get("/kas-per-outlet")
@@ -188,3 +223,20 @@ def journal(
         }
         for e in entries
     ]
+
+
+@router.get("/journal/export")
+def journal_export(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    format: str = Query(default="pdf"),
+    db: Session = Depends(get_db),
+):
+    start_dt, end_dt = _resolve_period(start, end)
+    entries = list_journal_entries(db, start_dt, end_dt)
+    try:
+        content, media_type, ext = export_journal(entries, start_dt, end_dt, format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    filename = f"jurnal_transaksi_{start_dt.date()}_{end_dt.date()}.{ext}"
+    return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})

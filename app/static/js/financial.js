@@ -209,6 +209,11 @@
             });
     }
 
+    function exportReport(kind, format) {
+        var p = periodDates();
+        window.location.href = API_BASE + "/" + kind + "/export?start=" + p.start + "&end=" + p.end + "&format=" + format;
+    }
+
     function reloadAll() {
         loadProfitLoss();
         loadExpenses();
@@ -271,5 +276,18 @@
         document.getElementById("pph-period").addEventListener("change", loadPphSummary);
         document.getElementById("btn-close-month-pph").addEventListener("click", closeMonthPph);
         document.getElementById("btn-deposit-pph").addEventListener("click", depositPph);
+
+        document.getElementById("btn-export-pl-xlsx").addEventListener("click", function (e) {
+            e.preventDefault(); exportReport("profit-loss", "xlsx");
+        });
+        document.getElementById("btn-export-pl-pdf").addEventListener("click", function (e) {
+            e.preventDefault(); exportReport("profit-loss", "pdf");
+        });
+        document.getElementById("btn-export-journal-xlsx").addEventListener("click", function (e) {
+            e.preventDefault(); exportReport("journal", "xlsx");
+        });
+        document.getElementById("btn-export-journal-pdf").addEventListener("click", function (e) {
+            e.preventDefault(); exportReport("journal", "pdf");
+        });
     });
 })();

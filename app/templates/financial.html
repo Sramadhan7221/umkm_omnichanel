@@ -146,13 +146,22 @@
                         <div class="col-12">
                             <div class="page-title-box d-flex align-items-center justify-content-between">
                                 <h4 class="page-title">Laporan Keuangan</h4>
-                                <div>
+                                <div class="d-flex align-items-center gap-2">
                                     <select id="period-select" class="form-select form-select-sm d-inline-block w-auto">
                                         <option value="7">7 Hari Terakhir</option>
                                         <option value="30" selected>30 Hari Terakhir</option>
                                         <option value="90">90 Hari Terakhir</option>
                                         <option value="3650">Semua Data</option>
                                     </select>
+                                    <div class="dropdown d-inline-block">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                            <i class="ri-download-2-line align-middle"></i> Export Laba Rugi
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <a href="#" class="dropdown-item" id="btn-export-pl-xlsx">Excel (.xlsx)</a>
+                                            <a href="#" class="dropdown-item" id="btn-export-pl-pdf">PDF</a>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -311,9 +320,20 @@
                     <div class="row">
                         <div class="col-12">
                             <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title">Jurnal Transaksi (Otomatis)</h4>
-                                    <p class="text-muted mb-0">Baris debet/kredit yang diposting otomatis dari pesanan, pencairan settlement, dan biaya operasional.</p>
+                                <div class="card-header d-flex align-items-center justify-content-between">
+                                    <div>
+                                        <h4 class="card-title">Jurnal Transaksi (Otomatis)</h4>
+                                        <p class="text-muted mb-0">Baris debet/kredit yang diposting otomatis dari pesanan, pencairan settlement, dan biaya operasional.</p>
+                                    </div>
+                                    <div class="dropdown d-inline-block">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                            <i class="ri-download-2-line align-middle"></i> Export Jurnal
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <a href="#" class="dropdown-item" id="btn-export-journal-xlsx">Excel (.xlsx)</a>
+                                            <a href="#" class="dropdown-item" id="btn-export-journal-pdf">PDF</a>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="card-body">
                                     <table id="journal-datatable" class="table table-striped dt-responsive nowrap w-100">
