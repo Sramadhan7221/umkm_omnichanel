@@ -96,6 +96,10 @@ python -m pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+6. Migrasi data:
+rm data/umkm_omni.db      # atau: del data\umkm_omni.db di Windows
+uvicorn app.main:app --reload
+
 ## macOS
 
 1. Open Terminal.
