@@ -17,7 +17,19 @@ from sqlalchemy.orm import Session
 
 from app.database import Base, SessionLocal, engine, run_lightweight_migrations
 from app.models.db_models import OmniOrder  # noqa: F401 (ensures table is registered)
-from app.routers import api, auth, financial, inventory, outlets, pages, platforms, pos, reconciliation
+from app.routers import (
+    api,
+    auth,
+    financial,
+    inventory,
+    outlets,
+    pages,
+    platforms,
+    pos,
+    reconciliation,
+    registration,
+    superadmin,
+)
 from app.routers.api import _sync_mock_orders
 from app.services.auth_service import seed_admin_user
 from app.services.chart_of_accounts_service import seed_accounts
@@ -76,4 +88,6 @@ app.include_router(reconciliation.router)
 app.include_router(platforms.router)
 app.include_router(outlets.router)
 app.include_router(pos.router)
+app.include_router(registration.router)
+app.include_router(superadmin.router)
 app.include_router(pages.router)

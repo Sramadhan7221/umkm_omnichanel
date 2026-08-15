@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Dashboard Superadmin | UMKM Omnichannel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="Kelola persetujuan registrasi Owner." name="description" />
+
+    <link rel="shortcut icon" href="/static/images/favicon.ico">
+
+    <script src="/static/js/config.js"></script>
+
+    <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
+    <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+    <div class="wrapper">
+
+        <div class="navbar-custom">
+            <div class="topbar container-fluid">
+                <div class="d-flex align-items-center gap-1">
+                    <div class="logo-topbar">
+                        <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+                    </div>
+
+                    <button class="button-toggle-menu">
+                        <i class="mdi mdi-menu"></i>
+                    </button>
+
+                    <h4 class="page-title d-none d-sm-block">Dashboard Superadmin</h4>
+                </div>
+
+                <ul class="topbar-menu d-flex align-items-center gap-3">
+                    <li class="dropdown">
+                        <a class="nav-link dropdown-toggle arrow-none nav-user" data-bs-toggle="dropdown" href="#" role="button">
+                            <span class="account-user-avatar"><i class="ri-user-3-line fs-22"></i></span>
+                            <span class="d-lg-flex flex-column gap-1 d-none"><h5 class="my-0" id="topbar-user-email"></h5></span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end">
+                            <a href="#" id="btn-logout" class="dropdown-item text-danger">
+                                <i class="ri-logout-box-line me-1"></i> Keluar
+                            </a>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="leftside-menu">
+            <span class="logo logo-light">
+                <span class="logo-lg"><img src="/static/images/logo.png" alt="logo"></span>
+            </span>
+
+            <div data-simplebar>
+                <ul class="side-nav">
+                    <li class="side-nav-title">Superadmin</li>
+
+                    <li class="side-nav-item">
+                        <a href="/superadmin/dashboard" class="side-nav-link active">
+                            <i class="ri-dashboard-line"></i>
+                            <span> Dashboard</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="content-page">
+            <div class="content">
+                <div class="container-fluid">
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-body">
+                                    <p class="text-muted mb-1">Owner Aktif</p>
+                                    <h3 class="mb-0" id="stat-active-owners">-</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Owner Baru per Bulan</h4>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-sm">
+                                        <thead><tr><th>Bulan</th><th class="text-end">Registrasi Baru</th></tr></thead>
+                                        <tbody id="monthly-owners-table"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-7">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h4 class="card-title">Menunggu Persetujuan</h4>
+                                </div>
+                                <div class="card-body">
+                                    <div id="pending-error" class="alert alert-danger d-none" role="alert"></div>
+                                    <table class="table table-sm">
+                                        <thead><tr><th>Bisnis</th><th>Email</th><th>Daftar</th><th class="text-end">Aksi</th></tr></thead>
+                                        <tbody id="pending-owners-table"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <footer class="footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-12 text-center">
+                            <script>document.write(new Date().getFullYear())</script> &copy; UMKM Omnichannel &mdash;
+                            Tampilan berbasis Techmin (Techzaa)
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="/static/js/vendor.min.js"></script>
+    <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
+    <script src="/static/js/app.min.js"></script>
+
+    <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
+    <script src="/static/js/auth-common.js"></script>
+    <script src="/static/js/superadmin_dashboard.js"></script>
+</body>
+
+</html>

@@ -78,8 +78,9 @@ async def login_page(request: Request):
         return RedirectResponse(url="/order_inbox")
     if role == "admin":
         return RedirectResponse(url="/pos")
-    # Superadmin has no business landing page yet (Epic J), and a logged-out
-    # visitor just sees the login form — both fall through to rendering it.
+    if role == "superadmin":
+        return RedirectResponse(url="/superadmin/dashboard")
+    # Logged-out visitor just sees the login form.
     return templates.TemplateResponse(request, "login.html")
 
 

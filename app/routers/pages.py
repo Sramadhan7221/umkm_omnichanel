@@ -132,3 +132,11 @@ async def team(request: Request):
     if guard:
         return guard
     return templates.TemplateResponse(request, "team.html", _user_context(request))
+
+
+@router.get("/superadmin/dashboard")
+async def superadmin_dashboard(request: Request):
+    guard = _guard(request, "superadmin")
+    if guard:
+        return guard
+    return templates.TemplateResponse(request, "superadmin_dashboard.html", _user_context(request))

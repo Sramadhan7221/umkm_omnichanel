@@ -51,7 +51,9 @@
                 <!-- <p class="text-muted text-center mt-3 mb-0" style="font-size: 0.85rem;">
                     Mode Demo &mdash; akun bawaan: <code>superadmin@umkmapp.com</code> / <code>Qwertyz!1</code>
                 </p> -->
-                <p id="login-info" class="text-muted text-center mt-3 mb-0 d-none" style="font-size: 0.9rem;"></p>
+                <p class="text-muted text-center mt-3 mb-0" style="font-size: 0.9rem;">
+                    Belum punya akun bisnis? <a href="/register">Daftar sebagai Owner</a>
+                </p>
             </div>
         </div>
     </div>
@@ -97,12 +99,7 @@
                         } else if (data.role === "admin") {
                             window.location.href = "/pos";
                         } else {
-                            // Superadmin has no business landing page yet
-                            // (Epic J's dashboard isn't built this session).
-                            var info = document.getElementById("login-info");
-                            info.textContent = "Login berhasil sebagai Superadmin. Dashboard akan tersedia di sesi Epic J berikutnya.";
-                            info.classList.remove("d-none");
-                            btn.disabled = false;
+                            window.location.href = "/superadmin/dashboard";
                         }
                     })
                     .catch(function (err) {
