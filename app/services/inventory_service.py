@@ -1,12 +1,19 @@
 """
-Inventory Sync service (Fase 2 dari roadmap) — central stock ledger,
-SKU-to-platform mapping, dan push stok ke adapter platform.
+Inventory Sync service (Fase 2 dari roadmap, made per-owner in Customer
+Request 1 Epic K) — central stock ledger, SKU-to-platform mapping, dan push
+stok ke adapter platform.
 
 Alur nyata yang disimulasikan di sini: saat order baru masuk (lewat
 sync_mock_orders), stok internal berkurang otomatis lalu di-push ke semua
 platform yang terhubung ke SKU tersebut (blueprint Section 1.1 & 3.5 —
 "outbound stock sync"). Penyesuaian manual (mis. koreksi stok opname) juga
 lewat jalur yang sama supaya audit trail (StockMovement) selalu konsisten.
+
+Product.sku is only unique per (owner_id, sku) since Epic K — child rows
+(ProductPlatformMapping/ProductImage/ProductAuditLog/StockMovement) link via
+Product's surrogate `id` (a real FK), not the sku string, so two owners
+reusing the same sku never cross-contaminate each other's mappings/photos/
+audit trail/stock history.
 """
 
 from __future__ import annotations
@@ -70,13 +77,15 @@ _INITIAL_CATALOG = [
 ]
 
 
-def seed_products(db: Session) -> None:
-    """Seed katalog produk awal sekali saja (kalau tabel masih kosong)."""
-    if db.query(Product).count() > 0:
+def seed_products(db: Session, owner_id: int) -> None:
+    """Seed katalog produk demo sekali per Owner (dipanggil dari hook approval
+    Epic J, bukan lagi startup app — lihat user_admin_service.approve_owner)."""
+    if db.query(Product).filter(Product.owner_id == owner_id).count() > 0:
         return
 
     for sku, name, price, cogs_price, unit_label, channels, initial_stock in _INITIAL_CATALOG:
         product = Product(
+            owner_id=owner_id,
             sku=sku,
             name=name,
             reference_price=price,
@@ -86,15 +95,22 @@ def seed_products(db: Session) -> None:
             low_stock_threshold=10,
         )
         db.add(product)
-        db.flush()  # supaya FK product.sku tersedia untuk mapping di bawah
+        db.flush()  # supaya product.id tersedia untuk anak-anaknya di bawah
         for channel in channels:
-            db.add(ProductPlatformMapping(sku=sku, channel=channel, platform_item_id=sku))
+            db.add(ProductPlatformMapping(product_id=product.id, channel=channel, platform_item_id=sku))
         db.add(StockMovement(
-            sku=sku, change_qty=initial_stock, resulting_qty=initial_stock,
+            product_id=product.id, change_qty=initial_stock, resulting_qty=initial_stock,
             source="manual", note="Stok awal (seed demo)",
         ))
 
     db.commit()
+
+
+def get_product(db: Session, owner_id: int, sku: str) -> Product | None:
+    """Resolves a Product by its business SKU within one owner's catalog —
+    replaces db.get(Product, sku), which stopped working once sku became
+    non-unique across owners."""
+    return db.query(Product).filter(Product.owner_id == owner_id, Product.sku == sku).first()
 
 
 def _get_adapter(channel_label: str):
@@ -132,12 +148,12 @@ def _push_price_to_platforms(product: Product) -> None:
         adapter.push_price_update(mapping.platform_item_id, product.reference_price, product.cogs_price)
 
 
-def deduct_stock_for_order(db: Session, order: CanonicalOrder) -> None:
+def deduct_stock_for_order(db: Session, owner_id: int, order: CanonicalOrder) -> None:
     """Dipanggil hanya untuk order yang BENAR-BENAR baru (bukan re-sync order
     yang sudah ada), supaya stok tidak berkurang dua kali untuk order yang
     sama."""
     for item in order.items:
-        product = db.get(Product, item.sku)
+        product = get_product(db, owner_id, item.sku)
         if product is None:
             # SKU dari mock adapter tidak ada di katalog — seharusnya tidak
             # terjadi di demo ini, tapi jangan sampai proses sync gagal
@@ -148,7 +164,7 @@ def deduct_stock_for_order(db: Session, order: CanonicalOrder) -> None:
         product.stock_qty = max(product.stock_qty + change, 0)
         product.updated_time = datetime.utcnow()
         db.add(StockMovement(
-            sku=product.sku, change_qty=change, resulting_qty=product.stock_qty,
+            product_id=product.id, change_qty=change, resulting_qty=product.stock_qty,
             source="order", note=f"Pesanan {order.platform_order_id}",
         ))
         db.commit()
@@ -156,13 +172,13 @@ def deduct_stock_for_order(db: Session, order: CanonicalOrder) -> None:
         _push_stock_to_platforms(product)
 
 
-def restore_stock_for_order(db: Session, order) -> None:
+def restore_stock_for_order(db: Session, owner_id: int, order) -> None:
     """Mirror of deduct_stock_for_order — Epic G's retur flow, called only
     when the returned goods came back in good, resellable condition. Takes
     the persisted OmniOrder (not a CanonicalOrder) since retur always acts
     on an order that already exists."""
     for item in order.items:
-        product = db.get(Product, item.sku)
+        product = get_product(db, owner_id, item.sku)
         if product is None:
             continue
 
@@ -170,7 +186,7 @@ def restore_stock_for_order(db: Session, order) -> None:
         product.stock_qty += change
         product.updated_time = datetime.utcnow()
         db.add(StockMovement(
-            sku=product.sku, change_qty=change, resulting_qty=product.stock_qty,
+            product_id=product.id, change_qty=change, resulting_qty=product.stock_qty,
             source="retur", note=f"Retur {order.platform_order_id}",
         ))
         db.commit()
@@ -178,9 +194,9 @@ def restore_stock_for_order(db: Session, order) -> None:
         _push_stock_to_platforms(product)
 
 
-def adjust_stock(db: Session, sku: str, new_qty: int, note: str = "") -> Product:
+def adjust_stock(db: Session, owner_id: int, sku: str, new_qty: int, note: str = "") -> Product:
     """Override manual (mis. hasil stok opname)."""
-    product = db.get(Product, sku)
+    product = get_product(db, owner_id, sku)
     if product is None:
         raise ValueError(f"SKU '{sku}' tidak ditemukan")
 
@@ -188,7 +204,7 @@ def adjust_stock(db: Session, sku: str, new_qty: int, note: str = "") -> Product
     product.stock_qty = new_qty
     product.updated_time = datetime.utcnow()
     db.add(StockMovement(
-        sku=sku, change_qty=change, resulting_qty=new_qty,
+        product_id=product.id, change_qty=change, resulting_qty=new_qty,
         source="manual", note=note or "Penyesuaian manual",
     ))
     db.commit()
@@ -197,47 +213,49 @@ def adjust_stock(db: Session, sku: str, new_qty: int, note: str = "") -> Product
     return product
 
 
-def get_products(db: Session) -> list[Product]:
-    return db.query(Product).order_by(Product.sku).all()
+def get_products(db: Session, owner_id: int) -> list[Product]:
+    return db.query(Product).filter(Product.owner_id == owner_id).order_by(Product.sku).all()
 
 
-def get_movements(db: Session, sku: str, limit: int = 20) -> list[StockMovement]:
+def get_movements(db: Session, owner_id: int, sku: str, limit: int = 20) -> list[StockMovement]:
+    product = get_product(db, owner_id, sku)
+    if product is None:
+        return []
     return (
         db.query(StockMovement)
-        .filter(StockMovement.sku == sku)
+        .filter(StockMovement.product_id == product.id)
         .order_by(StockMovement.created_time.desc())
         .limit(limit)
         .all()
     )
 
 
-def get_products_for_channel(db: Session, channel_label: str) -> list[tuple[str, str, float]]:
+def get_products_for_channel(db: Session, owner_id: int, channel_label: str) -> list[tuple[str, str, float]]:
     """(sku, name, reference_price) tuples for every product mapped to this
     platform — used by the "+1 order per active platform" event so new mock
     orders only ever pick from products the user has actually mapped there,
     instead of an adapter's hardcoded internal catalog."""
     mappings = (
         db.query(ProductPlatformMapping)
-        .filter(ProductPlatformMapping.channel == channel_label)
+        .join(Product, ProductPlatformMapping.product_id == Product.id)
+        .filter(Product.owner_id == owner_id, ProductPlatformMapping.channel == channel_label)
         .all()
     )
-    products = []
-    for mapping in mappings:
-        product = db.get(Product, mapping.sku)
-        if product is not None:
-            products.append((product.sku, product.name, product.reference_price))
-    return products
+    return [(m.product.sku, m.product.name, m.product.reference_price) for m in mappings]
 
 
 # ---------------------------------------------------------------------------
 # Tambah / Detail / Edit Produk (Fase 6)
 # ---------------------------------------------------------------------------
 
-def _save_image(sku: str, upload_file) -> str:
-    """Saves an uploaded file to static/uploads/products/<sku>/ and returns
-    the URL path to store in ProductImage.file_path. Same ephemeral-storage
-    caveat as SQLite applies here on Railway without a mounted volume."""
-    folder = UPLOAD_ROOT / sku
+def _save_image(owner_id: int, sku: str, upload_file) -> str:
+    """Saves an uploaded file to static/uploads/products/<owner_id>_<sku>/ and
+    returns the URL path to store in ProductImage.file_path. owner_id is part
+    of the folder name (Epic K) since sku alone is no longer globally unique
+    — two owners' same-named SKUs must not share an upload folder. Same
+    ephemeral-storage caveat as SQLite applies here on Railway without a
+    mounted volume."""
+    folder = UPLOAD_ROOT / f"{owner_id}_{sku}"
     folder.mkdir(parents=True, exist_ok=True)
     original_name = getattr(upload_file, "filename", "") or "foto.jpg"
     ext = Path(original_name).suffix or ".jpg"
@@ -245,11 +263,12 @@ def _save_image(sku: str, upload_file) -> str:
     dest = folder / filename
     with dest.open("wb") as f:
         shutil.copyfileobj(upload_file.file, f)
-    return f"/static/uploads/products/{sku}/{filename}"
+    return f"/static/uploads/products/{owner_id}_{sku}/{filename}"
 
 
 def create_product(
     db: Session,
+    owner_id: int,
     sku: str,
     name: str,
     description: str,
@@ -262,10 +281,11 @@ def create_product(
     primary_image=None,
     gallery_images: list | None = None,
 ) -> Product:
-    if db.get(Product, sku) is not None:
+    if get_product(db, owner_id, sku) is not None:
         raise ValueError(f"SKU '{sku}' sudah dipakai")
 
     product = Product(
+        owner_id=owner_id,
         sku=sku,
         name=name,
         description=description,
@@ -280,24 +300,24 @@ def create_product(
     db.flush()
 
     for channel in channels:
-        db.add(ProductPlatformMapping(sku=sku, channel=channel, platform_item_id=sku))
+        db.add(ProductPlatformMapping(product_id=product.id, channel=channel, platform_item_id=sku))
 
     db.add(StockMovement(
-        sku=sku, change_qty=stock_qty, resulting_qty=stock_qty,
+        product_id=product.id, change_qty=stock_qty, resulting_qty=stock_qty,
         source="manual", note="Produk baru ditambahkan",
     ))
 
     sort_order = 0
     if primary_image is not None and getattr(primary_image, "filename", None):
-        path = _save_image(sku, primary_image)
-        db.add(ProductImage(sku=sku, file_path=path, is_primary=True, sort_order=sort_order))
+        path = _save_image(owner_id, sku, primary_image)
+        db.add(ProductImage(product_id=product.id, file_path=path, is_primary=True, sort_order=sort_order))
         sort_order += 1
 
     for img in (gallery_images or []):
         if img is None or not getattr(img, "filename", None):
             continue
-        path = _save_image(sku, img)
-        db.add(ProductImage(sku=sku, file_path=path, is_primary=False, sort_order=sort_order))
+        path = _save_image(owner_id, sku, img)
+        db.add(ProductImage(product_id=product.id, file_path=path, is_primary=False, sort_order=sort_order))
         sort_order += 1
 
     db.commit()
@@ -307,12 +327,9 @@ def create_product(
     return product
 
 
-def get_product_detail(db: Session, sku: str) -> Product | None:
-    return db.get(Product, sku)
-
-
 def update_product(
     db: Session,
+    owner_id: int,
     sku: str,
     updates: dict,
     new_primary_image=None,
@@ -323,7 +340,7 @@ def update_product(
     """Applies edits to name/description/price/ppn/stock and/or images, and
     writes ONE ProductAuditLog row summarizing everything that changed —
     this is the audit trail the Edit Produk screen is required to keep."""
-    product = db.get(Product, sku)
+    product = get_product(db, owner_id, sku)
     if product is None:
         raise ValueError(f"SKU '{sku}' tidak ditemukan")
 
@@ -346,7 +363,7 @@ def update_product(
         old_qty = changed_fields["Stok"]["old"]
         new_qty = changed_fields["Stok"]["new"]
         db.add(StockMovement(
-            sku=sku, change_qty=new_qty - old_qty, resulting_qty=new_qty,
+            product_id=product.id, change_qty=new_qty - old_qty, resulting_qty=new_qty,
             source="manual", note=note or "Diedit lewat form Edit Produk",
         ))
 
@@ -354,7 +371,7 @@ def update_product(
         removed_any = False
         for image_id in remove_image_ids:
             image = db.get(ProductImage, image_id)
-            if image is not None and image.sku == sku:
+            if image is not None and image.product_id == product.id:
                 db.delete(image)
                 removed_any = True
         if removed_any:
@@ -364,23 +381,23 @@ def update_product(
         for img in product.images:
             if img.is_primary:
                 img.is_primary = False
-        path = _save_image(sku, new_primary_image)
-        db.add(ProductImage(sku=sku, file_path=path, is_primary=True, sort_order=0))
+        path = _save_image(owner_id, sku, new_primary_image)
+        db.add(ProductImage(product_id=product.id, file_path=path, is_primary=True, sort_order=0))
         changed_fields["Foto Utama"] = {"old": "sebelumnya", "new": "diganti"}
 
     for img in (new_gallery_images or []):
         if img is None or not getattr(img, "filename", None):
             continue
-        path = _save_image(sku, img)
+        path = _save_image(owner_id, sku, img)
         max_order = max([i.sort_order for i in product.images], default=0)
-        db.add(ProductImage(sku=sku, file_path=path, is_primary=False, sort_order=max_order + 1))
+        db.add(ProductImage(product_id=product.id, file_path=path, is_primary=False, sort_order=max_order + 1))
         changed_fields["Foto Tambahan"] = {"old": "-", "new": "ditambahkan foto baru"}
 
     product.updated_time = datetime.utcnow()
 
     if changed_fields:
         db.add(ProductAuditLog(
-            sku=sku,
+            product_id=product.id,
             changed_fields=json.dumps(changed_fields, ensure_ascii=False, default=str),
             note=note,
         ))
@@ -397,10 +414,13 @@ def update_product(
     return product
 
 
-def get_audit_log(db: Session, sku: str, limit: int = 30) -> list[ProductAuditLog]:
+def get_audit_log(db: Session, owner_id: int, sku: str, limit: int = 30) -> list[ProductAuditLog]:
+    product = get_product(db, owner_id, sku)
+    if product is None:
+        return []
     return (
         db.query(ProductAuditLog)
-        .filter(ProductAuditLog.sku == sku)
+        .filter(ProductAuditLog.product_id == product.id)
         .order_by(ProductAuditLog.changed_time.desc())
         .limit(limit)
         .all()

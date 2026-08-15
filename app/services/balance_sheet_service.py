@@ -41,13 +41,13 @@ _HPP_ACCOUNT = "5110"  # HPP Produk — split out of Beban for its own Laba Koto
 
 
 def _raw_balance(
-    db: Session, kode_akun: str, start: datetime | None = None, end: datetime | None = None,
+    db: Session, owner_id: int, kode_akun: str, start: datetime | None = None, end: datetime | None = None,
 ) -> float:
     """SUM(kredit) - SUM(debet) for one account, optionally bounded by
     JournalEntry.tanggal. Both None => all-time. Only `end` set => cumulative
     balance up to a cutoff (Neraca). Both set => period sum (Laba Rugi)."""
-    debit_q = db.query(JournalEntry).filter(JournalEntry.kode_debet == kode_akun)
-    credit_q = db.query(JournalEntry).filter(JournalEntry.kode_kredit == kode_akun)
+    debit_q = db.query(JournalEntry).filter(JournalEntry.owner_id == owner_id, JournalEntry.kode_debet == kode_akun)
+    credit_q = db.query(JournalEntry).filter(JournalEntry.owner_id == owner_id, JournalEntry.kode_kredit == kode_akun)
     if start is not None:
         debit_q = debit_q.filter(JournalEntry.tanggal >= start)
         credit_q = credit_q.filter(JournalEntry.tanggal >= start)
@@ -63,34 +63,44 @@ def _raw_balance(
 def get_account_balance(
     db: Session, account: Account, start: datetime | None = None, end: datetime | None = None,
 ) -> float:
-    """Signed balance in the account's own kelompok_utama direction."""
-    return _GROUP_SIGN[account.kelompok_utama] * _raw_balance(db, account.kode_akun, start, end)
+    """Signed balance in the account's own kelompok_utama direction. Reads
+    owner_id off the already-scoped `account` row itself rather than taking
+    a redundant separate parameter."""
+    return _GROUP_SIGN[account.kelompok_utama] * _raw_balance(db, account.owner_id, account.kode_akun, start, end)
 
 
-def _leaf_accounts(db: Session, kelompok_utama: list[str]) -> list[Account]:
+def _leaf_accounts(db: Session, owner_id: int, kelompok_utama: list[str]) -> list[Account]:
     return (
         db.query(Account)
-        .filter(Account.kelompok_utama.in_(kelompok_utama), Account.is_header.is_(False))
+        .filter(
+            Account.owner_id == owner_id,
+            Account.kelompok_utama.in_(kelompok_utama),
+            Account.is_header.is_(False),
+        )
         .order_by(Account.kode_akun)
         .all()
     )
 
 
-def _outlet_breakdown(db: Session, kode_akun: str, end: datetime) -> list[dict]:
+def _outlet_breakdown(db: Session, owner_id: int, kode_akun: str, end: datetime) -> list[dict]:
     """Per-outlet split of an is_outlet_scoped account's balance — the
     computation outlet_service.py's docstring has been pointing to since
-    Epic H ('wire that in once Epic B lands')."""
+    Epic H ('wire that in once Epic B lands'). Outlet itself isn't owner-scoped
+    (Epic L removes the whole model next epic, not worth retrofitting now),
+    but the JournalEntry rows queried per outlet are."""
     outlets = db.query(Outlet).order_by(Outlet.nama_outlet).all()
     breakdown = []
     for outlet in outlets:
         debit_total = sum(
             e.nominal for e in db.query(JournalEntry).filter(
+                JournalEntry.owner_id == owner_id,
                 JournalEntry.kode_debet == kode_akun, JournalEntry.outlet_id == outlet.kode_outlet,
                 JournalEntry.tanggal <= end,
             ).all()
         )
         credit_total = sum(
             e.nominal for e in db.query(JournalEntry).filter(
+                JournalEntry.owner_id == owner_id,
                 JournalEntry.kode_kredit == kode_akun, JournalEntry.outlet_id == outlet.kode_outlet,
                 JournalEntry.tanggal <= end,
             ).all()
@@ -103,25 +113,27 @@ def _outlet_breakdown(db: Session, kode_akun: str, end: datetime) -> list[dict]:
     return breakdown
 
 
-def get_kas_per_outlet(db: Session, as_of: datetime | None = None) -> list[dict]:
+def get_kas_per_outlet(db: Session, owner_id: int, as_of: datetime | None = None) -> list[dict]:
     """Public entry point reused by /outlets ('Kas per Outlet' report)."""
-    return _outlet_breakdown(db, "1111", as_of or datetime.utcnow())
+    return _outlet_breakdown(db, owner_id, "1111", as_of or datetime.utcnow())
 
 
-def _net_profit(db: Session, start: datetime | None, end: datetime) -> float:
+def _net_profit(db: Session, owner_id: int, start: datetime | None, end: datetime) -> float:
     """get_account_balance already returns a POSITIVE amount for both a
     Pendapatan account (revenue earned) and a Beban account (expense
     incurred) — each in its own group's natural-increase direction — so
     computing net profit means explicitly subtracting the two group totals,
     not summing every account's contribution across both groups."""
-    total_pendapatan = sum(get_account_balance(db, a, start, end) for a in _leaf_accounts(db, ["Pendapatan"]))
-    total_beban = sum(get_account_balance(db, a, start, end) for a in _leaf_accounts(db, ["Beban"]))
+    total_pendapatan = sum(
+        get_account_balance(db, a, start, end) for a in _leaf_accounts(db, owner_id, ["Pendapatan"])
+    )
+    total_beban = sum(get_account_balance(db, a, start, end) for a in _leaf_accounts(db, owner_id, ["Beban"]))
     return total_pendapatan - total_beban
 
 
-def get_profit_loss(db: Session, start: datetime, end: datetime) -> dict:
-    pendapatan_accounts = _leaf_accounts(db, ["Pendapatan"])
-    beban_accounts = _leaf_accounts(db, ["Beban"])
+def get_profit_loss(db: Session, owner_id: int, start: datetime, end: datetime) -> dict:
+    pendapatan_accounts = _leaf_accounts(db, owner_id, ["Pendapatan"])
+    beban_accounts = _leaf_accounts(db, owner_id, ["Beban"])
 
     total_pendapatan = sum(get_account_balance(db, a, start, end) for a in pendapatan_accounts)
     hpp = next(
@@ -148,14 +160,14 @@ def get_profit_loss(db: Session, start: datetime, end: datetime) -> dict:
     }
 
 
-def get_balance_sheet(db: Session, as_of: datetime) -> dict:
+def get_balance_sheet(db: Session, owner_id: int, as_of: datetime) -> dict:
     def _section(kelompok: str) -> list[dict]:
         rows = []
-        for account in _leaf_accounts(db, [kelompok]):
+        for account in _leaf_accounts(db, owner_id, [kelompok]):
             saldo = get_account_balance(db, account, end=as_of)
             row = {"kode_akun": account.kode_akun, "nama_akun": account.nama_akun, "saldo": saldo}
             if account.is_outlet_scoped:
-                row["breakdown_outlet"] = _outlet_breakdown(db, account.kode_akun, as_of)
+                row["breakdown_outlet"] = _outlet_breakdown(db, owner_id, account.kode_akun, as_of)
             rows.append(row)
         return rows
 
@@ -163,7 +175,7 @@ def get_balance_sheet(db: Session, as_of: datetime) -> dict:
     kewajiban = _section("Kewajiban")
     ekuitas = _section("Ekuitas")
 
-    laba_ditahan_berjalan = _net_profit(db, start=None, end=as_of)
+    laba_ditahan_berjalan = _net_profit(db, owner_id, start=None, end=as_of)
     ekuitas.append({
         "kode_akun": None,
         "nama_akun": "Laba Ditahan (Berjalan)",

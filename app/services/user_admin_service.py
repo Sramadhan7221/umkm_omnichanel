@@ -1,15 +1,18 @@
 """
-Owner registration + Superadmin approval workflow (Customer Request 1 Epic
-J). Flat functions taking `db: Session` first, matching this project's
-service-layer convention.
+Owner registration + Superadmin approval workflow (Customer Request 1,
+Epic J extended by Epic K). Flat functions taking `db: Session` first,
+matching this project's service-layer convention.
 
-Approving an Owner is supposed to also seed their Chart of Accounts (per
-CLAUDE.md's Epic J task text), but `chart_of_accounts_service.seed_accounts`
-is still a global, once-only seed keyed on `Account.kode_akun` as primary
-key with no `owner_id` column — re-seeding the same 38 codes for a second
-owner would collide today. That restructuring is Epic K's job; `approve_owner`
-below leaves a stub instead of calling it (PO-confirmed deferral, matching
-the precedent set at Epic H for the same kind of forward dependency).
+Approving an Owner provisions their entire independent demo sandbox — Chart
+of Accounts, Platform toggles, product catalog, a handful of mock orders,
+and their settlements — mirroring what used to auto-seed once, globally, at
+app startup before Epic K made all of this owner-scoped (see
+app/main.py's lifespan, which now only seeds global/tenant-independent
+data). Epic J shipped this as a `# TODO(Epic K)` stub because
+`chart_of_accounts_service.seed_accounts` was still a global, once-only seed
+with no `owner_id` column on `Account` — Epic K's schema change (surrogate
+`id` PK + `owner_id` + `unique(owner_id, kode_akun)`) is what makes the real
+call below safe.
 """
 
 from __future__ import annotations
@@ -21,6 +24,10 @@ from sqlalchemy.orm import Session
 
 from app.models.db_models import User
 from app.services.auth_service import hash_new_password
+from app.services.chart_of_accounts_service import seed_accounts
+from app.services.inventory_service import seed_products
+from app.services.platform_service import seed_platforms
+from app.services.reconciliation_service import generate_settlements
 
 
 def register_owner(db: Session, email: str, password: str, business_name: str) -> User:
@@ -67,14 +74,28 @@ def _get_owner(db: Session, user_id: int) -> User:
 
 
 def approve_owner(db: Session, user_id: int) -> User:
+    # Imported here (not at module top) to avoid a service->router layering
+    # oddity being visible at import time for every caller of this module —
+    # _sync_mock_orders lives in app/routers/api.py (Fase 5 placement, never
+    # moved), and this is its only cross-layer caller.
+    from app.routers.api import _sync_mock_orders
+
     user = _get_owner(db, user_id)
     if user.status != "pending":
         raise ValueError("Registrasi ini sudah diproses")
     user.status = "approved"
     db.commit()
     db.refresh(user)
-    # TODO(Epic K): seed_accounts(db, owner_id=user.id) once Account has an
-    # owner_id column and a per-owner-safe primary key (see module docstring).
+
+    # Provision a full, independent demo sandbox for this Owner — see module
+    # docstring.
+    seed_accounts(db, user.id)
+    seed_platforms(db, user.id)
+    seed_products(db, user.id)
+    for _ in range(5):
+        _sync_mock_orders(db, user.id)
+    generate_settlements(db, user.id)
+
     return user
 
 

@@ -22,10 +22,11 @@ from app.services.inventory_service import (
     create_product,
     get_audit_log,
     get_movements,
-    get_product_detail,
+    get_product,
     get_products,
     update_product,
 )
+from app.services.tenant_context import get_tenant_id
 
 # Owner + Admin baseline (Admin's granted "update stok" capability lives
 # here: list, adjust, movements, and the read-only detail lookup that backs
@@ -59,19 +60,21 @@ def _serialize_product_summary(p) -> dict:
 
 
 @router.get("")
-def list_products(db: Session = Depends(get_db)):
+def list_products(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Product catalog with current stock + mapped platform listings.
 
     Deliberately unchanged shape (Fase 6 requirement: adding product detail
     /edit features must not alter what the catalog DataTable displays)."""
-    return [_serialize_product_summary(p) for p in get_products(db)]
+    return [_serialize_product_summary(p) for p in get_products(db, owner_id)]
 
 
 @router.post("/{sku}/adjust")
-def adjust_product_stock(sku: str, body: StockAdjustRequest, db: Session = Depends(get_db)):
+def adjust_product_stock(
+    sku: str, body: StockAdjustRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id),
+):
     """Manual stock override (e.g. after a physical stock count)."""
     try:
-        product = adjust_stock(db, sku, body.quantity, body.note)
+        product = adjust_stock(db, owner_id, sku, body.quantity, body.note)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -82,9 +85,9 @@ def adjust_product_stock(sku: str, body: StockAdjustRequest, db: Session = Depen
 
 
 @router.get("/{sku}/movements")
-def product_stock_movements(sku: str, db: Session = Depends(get_db)):
+def product_stock_movements(sku: str, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Stock movement history (audit trail) for one SKU."""
-    movements = get_movements(db, sku)
+    movements = get_movements(db, owner_id, sku)
     return [
         {
             "change_qty": m.change_qty,
@@ -143,11 +146,13 @@ def add_product(
     primary_image: UploadFile | None = File(None),
     gallery_images: list[UploadFile] = File([]),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     """Create a new product for the selected platform(s), with photos."""
     try:
         product = create_product(
             db,
+            owner_id=owner_id,
             sku=sku,
             name=name,
             description=description,
@@ -167,9 +172,9 @@ def add_product(
 
 
 @router.get("/products/{sku}/detail")
-def product_detail(sku: str, db: Session = Depends(get_db)):
+def product_detail(sku: str, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Full product detail for the marketplace-style single-page view."""
-    product = get_product_detail(db, sku)
+    product = get_product(db, owner_id, sku)
     if product is None:
         raise HTTPException(status_code=404, detail="Produk tidak ditemukan")
     return _serialize_product_full(product)
@@ -190,6 +195,7 @@ def edit_product(
     new_primary_image: UploadFile | None = File(None),
     new_gallery_images: list[UploadFile] = File([]),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     """Edit name/stock/price/description/images — every change lands in the
     product's ProductAuditLog (Fase 6 requirement)."""
@@ -217,6 +223,7 @@ def edit_product(
     try:
         product = update_product(
             db,
+            owner_id,
             sku,
             updates,
             new_primary_image=new_primary_image,
@@ -231,9 +238,9 @@ def edit_product(
 
 
 @router.get("/products/{sku}/audit", dependencies=[Depends(require_role("owner"))])
-def product_audit_trail(sku: str, db: Session = Depends(get_db)):
+def product_audit_trail(sku: str, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Edit history (name/price/description/image changes) for one SKU."""
-    logs = get_audit_log(db, sku)
+    logs = get_audit_log(db, owner_id, sku)
     return [
         {
             "changed_fields": json.loads(log.changed_fields),

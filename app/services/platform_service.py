@@ -25,12 +25,12 @@ _INITIAL_PLATFORMS = [
 ]
 
 
-def seed_platforms(db: Session) -> None:
-    if db.query(Platform).count() > 0:
+def seed_platforms(db: Session, owner_id: int) -> None:
+    if db.query(Platform).filter(Platform.owner_id == owner_id).count() > 0:
         return
     for code, name, fulfillment_type, is_active, fee_rate in _INITIAL_PLATFORMS:
         db.add(Platform(
-            code=code, name=name, fulfillment_type=fulfillment_type,
+            owner_id=owner_id, code=code, name=name, fulfillment_type=fulfillment_type,
             is_active=is_active, fee_rate=fee_rate,
         ))
     db.commit()
@@ -50,16 +50,28 @@ def backfill_fee_rates(db: Session) -> None:
         db.commit()
 
 
-def list_platforms(db: Session) -> list[Platform]:
-    return db.query(Platform).order_by(Platform.name).all()
+def get_platform(db: Session, owner_id: int, code: str) -> Platform | None:
+    """Resolves a Platform by its business code within one owner's platform
+    list — replaces db.get(Platform, code), which stopped working once code
+    became non-unique across owners."""
+    return db.query(Platform).filter(Platform.owner_id == owner_id, Platform.code == code).first()
 
 
-def list_active_platforms(db: Session) -> list[Platform]:
-    return db.query(Platform).filter(Platform.is_active.is_(True)).order_by(Platform.name).all()
+def list_platforms(db: Session, owner_id: int) -> list[Platform]:
+    return db.query(Platform).filter(Platform.owner_id == owner_id).order_by(Platform.name).all()
 
 
-def set_active(db: Session, code: str, is_active: bool) -> Platform:
-    platform = db.get(Platform, code)
+def list_active_platforms(db: Session, owner_id: int) -> list[Platform]:
+    return (
+        db.query(Platform)
+        .filter(Platform.owner_id == owner_id, Platform.is_active.is_(True))
+        .order_by(Platform.name)
+        .all()
+    )
+
+
+def set_active(db: Session, owner_id: int, code: str, is_active: bool) -> Platform:
+    platform = get_platform(db, owner_id, code)
     if platform is None:
         raise ValueError(f"Platform '{code}' tidak ditemukan")
     platform.is_active = is_active

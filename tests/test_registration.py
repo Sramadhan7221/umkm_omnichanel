@@ -1,14 +1,16 @@
 """
 Acceptance criteria for Customer Request 1 Epic J (Registrasi Owner
-Self-Service + Dashboard Approval Superadmin). The Chart-of-Accounts seed
-hook on approval is deliberately deferred to Epic K (see
-app/services/user_admin_service.py's module docstring) so it isn't tested
-here.
+Self-Service + Dashboard Approval Superadmin). Approving an Owner now also
+provisions their full demo sandbox (Epic K wired this up for real — see
+app/services/user_admin_service.py's module docstring) — the approve tests
+below exercise that path too, just don't assert on its contents (that's
+tests/test_tenant_isolation.py's job).
 """
 
 from app.main import app
 from app.models.db_models import User
 from app.routers.auth import _get_session_role
+from app.services.journal_engine_service import seed_mapping_rules, seed_pos_payment_extension
 
 
 def _as_role(client, role):
@@ -58,6 +60,13 @@ def test_superadmin_stats_reflect_new_registration(client, db):
 
 
 def test_approve_then_login_succeeds_and_double_approve_rejected(client, db):
+    # approve_owner()'s demo-sandbox provisioning needs the GLOBAL mapping
+    # rules to already exist (same as app.main's lifespan seeds them once at
+    # cold boot, before any registration happens) — the client/db fixtures
+    # don't run that lifespan, so seed them explicitly here.
+    seed_mapping_rules(db)
+    seed_pos_payment_extension(db)
+
     _register(client)
     user = db.query(User).filter(User.email == "owner@example.com").first()
 
@@ -90,6 +99,9 @@ def test_reject_blocks_login_permanently_but_keeps_row(client, db):
 
 
 def test_deactivate_then_reactivate_owner(client, db):
+    seed_mapping_rules(db)  # see test_approve_then_login_succeeds_and_double_approve_rejected
+    seed_pos_payment_extension(db)
+
     _register(client)
     user = db.query(User).filter(User.email == "owner@example.com").first()
 

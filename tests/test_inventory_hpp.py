@@ -10,28 +10,32 @@ from app.models.db_models import Product, ProductAuditLog
 from app.services.inventory_service import (
     _INITIAL_CATALOG,
     create_product,
+    get_product,
     seed_products,
     update_product,
 )
+from tests.conftest import as_tenant, make_owner
 
 
-def _make_product(db, sku="SKU-TEST-001", price=100_000, cogs=60_000, channels=None):
+def _make_product(db, owner_id, sku="SKU-TEST-001", price=100_000, cogs=60_000, channels=None):
     return create_product(
-        db, sku=sku, name="Produk Uji", description="", stock_qty=10,
+        db, owner_id, sku=sku, name="Produk Uji", description="", stock_qty=10,
         reference_price=price, cogs_price=cogs, unit_label="Pcs", ppn_rate=11.0,
         channels=channels or [],
     )
 
 
 def test_create_product_stores_cogs_price_and_unit_label(db):
-    product = _make_product(db)
+    owner = make_owner(db)
+    product = _make_product(db, owner.id)
     assert product.cogs_price == 60_000
     assert product.unit_label == "Pcs"
 
 
 def test_seed_products_all_have_cogs_price_and_unit_label(db):
-    seed_products(db)
-    products = db.query(Product).all()
+    owner = make_owner(db)
+    seed_products(db, owner.id)
+    products = db.query(Product).filter(Product.owner_id == owner.id).all()
     assert len(products) == len(_INITIAL_CATALOG)
     for product in products:
         assert product.cogs_price > 0
@@ -39,19 +43,21 @@ def test_seed_products_all_have_cogs_price_and_unit_label(db):
 
 
 def test_update_product_tracks_cogs_price_change_in_audit_log(db):
-    _make_product(db)
-    update_product(db, "SKU-TEST-001", {"cogs_price": 65_000}, note="Bahan baku naik")
+    owner = make_owner(db)
+    _make_product(db, owner.id)
+    update_product(db, owner.id, "SKU-TEST-001", {"cogs_price": 65_000}, note="Bahan baku naik")
 
-    product = db.get(Product, "SKU-TEST-001")
+    product = get_product(db, owner.id, "SKU-TEST-001")
     assert product.cogs_price == 65_000
 
-    logs = db.query(ProductAuditLog).filter(ProductAuditLog.sku == "SKU-TEST-001").all()
+    logs = db.query(ProductAuditLog).filter(ProductAuditLog.product_id == product.id).all()
     assert len(logs) == 1
     changed = json.loads(logs[0].changed_fields)
     assert changed["HPP (Harga Pokok)"] == {"old": 60_000.0, "new": 65_000.0}
 
 
 def test_price_or_hpp_change_pushes_to_mapped_platforms(db, monkeypatch):
+    owner = make_owner(db)
     calls = []
 
     class FakeAdapter:
@@ -63,19 +69,20 @@ def test_price_or_hpp_change_pushes_to_mapped_platforms(db, monkeypatch):
 
     monkeypatch.setattr("app.services.inventory_service._get_adapter", lambda channel: FakeAdapter())
 
-    product = _make_product(db, channels=["Shopee"])
+    product = _make_product(db, owner.id, channels=["Shopee"])
     assert calls == [("SKU-TEST-001", 100_000, 60_000)]  # push on create
 
     calls.clear()
-    update_product(db, "SKU-TEST-001", {"reference_price": 110_000})
+    update_product(db, owner.id, "SKU-TEST-001", {"reference_price": 110_000})
     assert calls == [("SKU-TEST-001", 110_000, 60_000)]
 
     calls.clear()
-    update_product(db, "SKU-TEST-001", {"description": "Deskripsi baru"})
+    update_product(db, owner.id, "SKU-TEST-001", {"description": "Deskripsi baru"})
     assert calls == []  # non-price edit shouldn't trigger a price push
 
 
 def test_add_product_endpoint_requires_cogs_price_and_unit_label(client, db):
+    make_owner(db)
     response = client.post("/api/inventory/products", data={
         "sku": "SKU-TEST-002", "name": "Produk Tanpa HPP", "stock_qty": "5", "reference_price": "50000",
     })
@@ -83,6 +90,7 @@ def test_add_product_endpoint_requires_cogs_price_and_unit_label(client, db):
 
 
 def test_add_product_endpoint_accepts_cogs_price_and_unit_label(client, db):
+    make_owner(db)
     response = client.post("/api/inventory/products", data={
         "sku": "SKU-TEST-003", "name": "Produk Lengkap", "stock_qty": "5",
         "reference_price": "50000", "cogs_price": "30000", "unit_label": "Botol",

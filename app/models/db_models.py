@@ -7,7 +7,7 @@ and shape are kept identical on purpose, so the mapping from CanonicalOrder
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -42,8 +42,11 @@ class User(Base):
 
 class Platform(Base):
     __tablename__ = "platform"
+    __table_args__ = (UniqueConstraint("owner_id", "code", name="uq_platform_owner_code"),)
 
-    code = Column(String, primary_key=True)          # matches Channel enum value, e.g. "shopee"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    code = Column(String, nullable=False)             # matches Channel enum value, e.g. "shopee" — unique per owner, not globally (Epic K)
     name = Column(String, nullable=False)             # display label, e.g. "Shopee"
     fulfillment_type = Column(String, nullable=False)  # "Pengiriman" | "Ambil Instan"
     is_active = Column(Boolean, default=False, nullable=False)
@@ -53,8 +56,13 @@ class Platform(Base):
 
 class OmniOrder(Base):
     __tablename__ = "omni_order"
+    __table_args__ = (UniqueConstraint("owner_id", "platform_order_id", name="uq_omni_order_owner_platform_order_id"),)
 
-    platform_order_id = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    # Unique per owner, not globally (Epic K) — e.g. POS nota numbers like
+    # "NT-202608001" are generated per-owner and can repeat across tenants.
+    platform_order_id = Column(String, nullable=False)
     channel = Column(String, nullable=False, index=True)
     fulfillment_type = Column(String, nullable=False)
     status = Column(String, nullable=False, index=True)
@@ -79,7 +87,10 @@ class OmniOrderItem(Base):
     __tablename__ = "omni_order_item"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    order_id = Column(String, ForeignKey("omni_order.platform_order_id"), nullable=False)
+    # FK to OmniOrder's surrogate id (not platform_order_id, which is only
+    # unique per owner since Epic K and can't safely back a shared relationship
+    # join across tenants — see OmniOrder's owner_id comment).
+    order_id = Column(Integer, ForeignKey("omni_order.id"), nullable=False)
     sku = Column(String, nullable=False)
     platform_item_id = Column(String)
     item_name = Column(String, nullable=False)
@@ -94,7 +105,8 @@ class OmniOrderFee(Base):
     __tablename__ = "omni_order_fee"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    order_id = Column(String, ForeignKey("omni_order.platform_order_id"), nullable=False)
+    # FK to OmniOrder's surrogate id — see OmniOrderItem.order_id's comment above.
+    order_id = Column(Integer, ForeignKey("omni_order.id"), nullable=False)
     category = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
     label = Column(String)
@@ -112,8 +124,11 @@ class OmniOrderFee(Base):
 
 class Product(Base):
     __tablename__ = "product"
+    __table_args__ = (UniqueConstraint("owner_id", "sku", name="uq_product_owner_sku"),)
 
-    sku = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    sku = Column(String, nullable=False)  # unique per owner, not globally (Epic K)
     name = Column(String, nullable=False)
     description = Column(Text, default="")
     reference_price = Column(Float, default=0)  # harga dasar
@@ -144,7 +159,10 @@ class ProductPlatformMapping(Base):
     __tablename__ = "product_platform_mapping"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sku = Column(String, ForeignKey("product.sku"), nullable=False)
+    # FK to Product's surrogate id (not sku, which is only unique per owner
+    # since Epic K and can't safely back a shared relationship join across
+    # tenants — see Product's owner_id comment).
+    product_id = Column(Integer, ForeignKey("product.id"), nullable=False)
     channel = Column(String, nullable=False)          # display label, e.g. "Shopee"
     platform_item_id = Column(String, nullable=False)  # the platform's own item/menu id
 
@@ -160,7 +178,8 @@ class ProductImage(Base):
     __tablename__ = "product_image"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sku = Column(String, ForeignKey("product.sku"), nullable=False)
+    # FK to Product's surrogate id — see ProductPlatformMapping.product_id's comment above.
+    product_id = Column(Integer, ForeignKey("product.id"), nullable=False)
     file_path = Column(String, nullable=False)  # e.g. "/static/uploads/products/SKU-001/abc123.jpg"
     is_primary = Column(Boolean, default=False, nullable=False)
     sort_order = Column(Integer, default=0)
@@ -177,7 +196,8 @@ class ProductAuditLog(Base):
     __tablename__ = "product_audit_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sku = Column(String, ForeignKey("product.sku"), nullable=False)
+    # FK to Product's surrogate id — see ProductPlatformMapping.product_id's comment above.
+    product_id = Column(Integer, ForeignKey("product.id"), nullable=False)
     changed_fields = Column(Text, nullable=False)  # JSON: {"field": {"old": ..., "new": ...}}
     note = Column(String, default="")
     changed_time = Column(DateTime, default=datetime.utcnow, index=True)
@@ -192,7 +212,8 @@ class StockMovement(Base):
     __tablename__ = "stock_movement"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    sku = Column(String, ForeignKey("product.sku"), nullable=False)
+    # FK to Product's surrogate id — see ProductPlatformMapping.product_id's comment above.
+    product_id = Column(Integer, ForeignKey("product.id"), nullable=False)
     change_qty = Column(Integer, nullable=False)   # negative = deduction, positive = addition
     resulting_qty = Column(Integer, nullable=False)
     source = Column(String, nullable=False)         # "order" | "manual"
@@ -213,6 +234,7 @@ class Expense(Base):
     __tablename__ = "expense"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     category = Column(String, nullable=False)   # free-text, e.g. "Sewa", "Gaji", "Kemasan"
     amount = Column(Float, nullable=False)
     note = Column(String, default="")
@@ -243,8 +265,12 @@ class Expense(Base):
 class Settlement(Base):
     __tablename__ = "settlement"
 
-    settlement_id = Column(String, primary_key=True)
-    platform_order_id = Column(String, ForeignKey("omni_order.platform_order_id"), nullable=False, index=True)
+    settlement_id = Column(String, primary_key=True)  # "SETL-<uuid10>" — globally unique, no owner-scoped restructuring needed
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    # Plain String business key, not a DB-enforced FK — omni_order.platform_order_id
+    # is only unique per owner since Epic K. Always queried together with this
+    # row's own owner_id, so no ambiguity (see reconciliation_service.py).
+    platform_order_id = Column(String, nullable=False, index=True)
     channel = Column(String, nullable=False)
     expected_amount = Column(Float, nullable=False)   # our own net_amount at settlement time
     payout_amount = Column(Float, nullable=False)     # what the (simulated) platform payout report says
@@ -265,13 +291,18 @@ class Settlement(Base):
 
 class Account(Base):
     __tablename__ = "account"
+    __table_args__ = (UniqueConstraint("owner_id", "kode_akun", name="uq_account_owner_kode_akun"),)
 
-    kode_akun = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    kode_akun = Column(String, nullable=False)  # unique per owner, not globally (Epic K)
     nama_akun = Column(String, nullable=False)
     penjelasan_awam = Column(Text, default="")
     kelompok_utama = Column(String, nullable=False)  # Aset|Kewajiban|Ekuitas|Pendapatan|Beban
     saldo_normal = Column(String, default="")          # "Debet" | "Kredit" | "" untuk header
-    parent_code = Column(String, ForeignKey("account.kode_akun"), nullable=True)
+    # Plain String, not a DB-enforced FK (self-referencing) — kode_akun is only
+    # unique per owner since Epic K. Resolved in application code instead.
+    parent_code = Column(String, nullable=True)
     is_header = Column(Boolean, default=False, nullable=False)
     is_outlet_scoped = Column(Boolean, default=False, nullable=False)
 
@@ -311,9 +342,13 @@ class TransactionMappingRule(Base):
     kategori_transaksi = Column(String, nullable=False)
     event_trigger = Column(String, nullable=False)
     platform = Column(String, nullable=False)
-    kode_debet = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    # Plain String, not a DB-enforced FK — account.kode_akun is only unique per
+    # owner since Epic K, but this table stays GLOBAL (shared config, not
+    # owner-scoped), so it can't target one owner's Account rows via FK anyway.
+    # Resolved in application code (chart_of_accounts_service.get_account).
+    kode_debet = Column(String, nullable=False)
     nama_akun_debet = Column(String, nullable=False)
-    kode_kredit = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    kode_kredit = Column(String, nullable=False)
     nama_akun_kredit = Column(String, nullable=False)
     trigger_dokumen = Column(String, default="")
     aturan_keterangan = Column(Text, default="")
@@ -322,11 +357,15 @@ class TransactionMappingRule(Base):
 class JournalEntry(Base):
     __tablename__ = "journal_entry"
 
-    no_jurnal = Column(String, primary_key=True)  # generated "JE-<uuid10>", same pattern as Settlement.settlement_id
+    no_jurnal = Column(String, primary_key=True)  # generated "JE-<uuid10>" — globally unique, no owner-scoped restructuring needed
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     tanggal = Column(DateTime, nullable=False, index=True)
-    kode_debet = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    # Plain String, not DB-enforced FKs — account.kode_akun is only unique per
+    # owner since Epic K. Resolved in application code instead (always the
+    # same owner_id as this JournalEntry itself).
+    kode_debet = Column(String, nullable=False)
     nama_akun_debet = Column(String, nullable=False)
-    kode_kredit = Column(String, ForeignKey("account.kode_akun"), nullable=False)
+    kode_kredit = Column(String, nullable=False)
     nama_akun_kredit = Column(String, nullable=False)
     nominal = Column(Float, nullable=False)
     sumber_dokumen = Column(String, default="")
@@ -339,7 +378,11 @@ class JournalEntry(Base):
     # were generalized beyond that rule's literal row (see journal_engine_service).
     rule_no = Column(Integer, ForeignKey("transaction_mapping_rule.no"), nullable=True)
 
-    order_id = Column(String, ForeignKey("omni_order.platform_order_id"), nullable=True)
+    # Plain String business key (platform_order_id), not a DB-enforced FK —
+    # omni_order.platform_order_id is only unique per owner since Epic K.
+    # Always queried together with this row's own owner_id (see
+    # journal_engine_service._pos_original_payment_account), so no ambiguity.
+    order_id = Column(String, nullable=True)
     settlement_id = Column(String, ForeignKey("settlement.settlement_id"), nullable=True)
     expense_id = Column(Integer, ForeignKey("expense.id"), nullable=True)
 

@@ -29,11 +29,14 @@ from app.services.journal_engine_service import (
     post_settlement_journal,
     seed_mapping_rules,
 )
+from tests.conftest import as_tenant, make_owner
 
 
 def _seed(db):
-    seed_accounts(db)
+    owner = make_owner(db)
+    seed_accounts(db, owner.id)
     seed_mapping_rules(db)
+    return owner
 
 
 def _csv_rows():
@@ -41,17 +44,19 @@ def _csv_rows():
         return list(csv.DictReader(f))
 
 
-def _make_order(db, order_id, channel, status, gross, fees, items=None):
+def _make_order(db, owner_id, order_id, channel, status, gross, fees, items=None):
     order = OmniOrder(
+        owner_id=owner_id,
         platform_order_id=order_id, channel=channel, fulfillment_type="Pengiriman",
         status=status, order_time=datetime(2026, 8, 1, 10, 0), updated_time=datetime(2026, 8, 1, 10, 0),
         gross_amount=gross, net_amount=gross,
     )
     db.add(order)
+    db.flush()  # supaya order.id tersedia untuk FK items/fees di bawah
     for category, amount, label in fees:
-        db.add(OmniOrderFee(order_id=order_id, category=category, amount=amount, label=label))
+        db.add(OmniOrderFee(order_id=order.id, category=category, amount=amount, label=label))
     for sku, qty, price in (items or []):
-        db.add(OmniOrderItem(order_id=order_id, sku=sku, item_name=sku, quantity=qty, unit_price=price))
+        db.add(OmniOrderItem(order_id=order.id, sku=sku, item_name=sku, quantity=qty, unit_price=price))
     db.commit()
     db.refresh(order)
     return order
@@ -78,12 +83,12 @@ def test_seed_mapping_rules_is_idempotent(db):
 
 
 def test_shopee_order_completed_posts_revenue_fee_and_cogs_entries(db):
-    _seed(db)
-    db.add(Product(sku="SKU-1", name="Produk 1", cogs_price=10_000, stock_qty=100))
+    owner = _seed(db)
+    db.add(Product(owner_id=owner.id, sku="SKU-1", name="Produk 1", cogs_price=10_000, stock_qty=100))
     db.commit()
 
     order = _make_order(
-        db, "SP-001", "Shopee", "Selesai", gross=100_000,
+        db, owner.id, "SP-001", "Shopee", "Selesai", gross=100_000,
         fees=[("Komisi", 2_000, "commission_fee"), ("Biaya Pembayaran", 2_800, "service_fee")],
         items=[("SKU-1", 2, 50_000)],
     )
@@ -106,9 +111,9 @@ def test_shopee_order_completed_posts_revenue_fee_and_cogs_entries(db):
 
 
 def test_grabfood_logistics_fee_generalizes_to_food_delivery_receivable(db):
-    _seed(db)
+    owner = _seed(db)
     order = _make_order(
-        db, "GF-001", "GrabFood", "Selesai", gross=50_000,
+        db, owner.id, "GF-001", "GrabFood", "Selesai", gross=50_000,
         fees=[("Komisi", 10_000, "commission_fee"), ("Logistik", 5_000, "delivery_fee")],
     )
     entries = post_order_completed_journal(db, order)
@@ -122,9 +127,9 @@ def test_grabfood_logistics_fee_generalizes_to_food_delivery_receivable(db):
 
 
 def test_refunded_order_posts_retur_entry_for_ecommerce_and_food_delivery(db):
-    _seed(db)
-    shopee_refund = _make_order(db, "SP-REF-1", "Shopee", "Dikembalikan", gross=75_000, fees=[])
-    grabfood_refund = _make_order(db, "GF-REF-1", "GrabFood", "Dikembalikan", gross=40_000, fees=[])
+    owner = _seed(db)
+    shopee_refund = _make_order(db, owner.id, "SP-REF-1", "Shopee", "Dikembalikan", gross=75_000, fees=[])
+    grabfood_refund = _make_order(db, owner.id, "GF-REF-1", "GrabFood", "Dikembalikan", gross=40_000, fees=[])
 
     shopee_entries = post_order_refunded_journal(db, shopee_refund)
     grabfood_entries = post_order_refunded_journal(db, grabfood_refund)
@@ -137,10 +142,10 @@ def test_refunded_order_posts_retur_entry_for_ecommerce_and_food_delivery(db):
 
 
 def test_settlement_posts_bank_receipt_entry(db):
-    _seed(db)
-    order = _make_order(db, "SP-002", "Shopee", "Selesai", gross=100_000, fees=[])
+    owner = _seed(db)
+    order = _make_order(db, owner.id, "SP-002", "Shopee", "Selesai", gross=100_000, fees=[])
     settlement = Settlement(
-        settlement_id="SETL-TEST01", platform_order_id=order.platform_order_id, channel="Shopee",
+        settlement_id="SETL-TEST01", owner_id=owner.id, platform_order_id=order.platform_order_id, channel="Shopee",
         expected_amount=95_000, payout_amount=95_000, diff_amount=0, status="Cocok",
         batch_ref="BATCH-TEST", settlement_date=datetime(2026, 8, 2, 9, 0),
     )
@@ -156,15 +161,15 @@ def test_settlement_posts_bank_receipt_entry(db):
 
 
 def test_expense_rule_variants_post_correct_account_pairs(db):
-    _seed(db)
+    owner = _seed(db)
     db.add(Outlet(kode_outlet="OUT-1", nama_outlet="Toko Utama"))
     db.commit()
 
-    kemasan = add_expense(db, "Bubble Wrap", 75_000, "", datetime(2026, 8, 1), rule_no=25, outlet_id="OUT-1")
-    saas = add_expense(db, "Langganan POS", 150_000, "", datetime(2026, 8, 1), rule_no=26)
-    gaji_bank = add_expense(db, "Gaji", 3_000_000, "", datetime(2026, 8, 1), rule_no=30)
-    gaji_tunai = add_expense(db, "Gaji Harian", 200_000, "", datetime(2026, 8, 1), rule_no=31, outlet_id="OUT-1")
-    operasional = add_expense(db, "Listrik", 500_000, "", datetime(2026, 8, 1), rule_no=32)
+    kemasan = add_expense(db, owner.id, "Bubble Wrap", 75_000, "", datetime(2026, 8, 1), rule_no=25, outlet_id="OUT-1")
+    saas = add_expense(db, owner.id, "Langganan POS", 150_000, "", datetime(2026, 8, 1), rule_no=26)
+    gaji_bank = add_expense(db, owner.id, "Gaji", 3_000_000, "", datetime(2026, 8, 1), rule_no=30)
+    gaji_tunai = add_expense(db, owner.id, "Gaji Harian", 200_000, "", datetime(2026, 8, 1), rule_no=31, outlet_id="OUT-1")
+    operasional = add_expense(db, owner.id, "Listrik", 500_000, "", datetime(2026, 8, 1), rule_no=32)
 
     entries = {e.expense_id: e for e in db.query(JournalEntry).filter(JournalEntry.expense_id.isnot(None)).all()}
 
@@ -179,22 +184,23 @@ def test_expense_rule_variants_post_correct_account_pairs(db):
 
 @pytest.mark.parametrize("rule_no", [25, 31])
 def test_add_expense_rejects_outlet_scoped_rule_without_outlet(db, rule_no):
-    _seed(db)
+    owner = _seed(db)
     with pytest.raises(ValueError):
-        add_expense(db, "Biaya Tunai", 50_000, "", datetime(2026, 8, 1), rule_no=rule_no, outlet_id=None)
+        add_expense(db, owner.id, "Biaya Tunai", 50_000, "", datetime(2026, 8, 1), rule_no=rule_no, outlet_id=None)
 
     assert db.query(JournalEntry).filter(JournalEntry.rule_no == rule_no).count() == 0
 
 
 def test_add_expense_allows_non_outlet_scoped_rule_without_outlet(db):
-    _seed(db)
-    expense = add_expense(db, "Listrik", 500_000, "", datetime(2026, 8, 1), rule_no=32, outlet_id=None)
+    owner = _seed(db)
+    expense = add_expense(db, owner.id, "Listrik", 500_000, "", datetime(2026, 8, 1), rule_no=32, outlet_id=None)
     assert expense.id is not None
 
 
 def test_journal_endpoint_returns_posted_entries(client, db):
-    _seed(db)
-    order = _make_order(db, "SP-003", "Shopee", "Selesai", gross=60_000, fees=[("Komisi", 1_200, "commission_fee")])
+    owner = _seed(db)
+    as_tenant(owner.id)
+    order = _make_order(db, owner.id, "SP-003", "Shopee", "Selesai", gross=60_000, fees=[("Komisi", 1_200, "commission_fee")])
     post_order_completed_journal(db, order)
 
     response = client.get("/api/financial/journal?start=2026-07-01&end=2026-08-31")
@@ -205,7 +211,8 @@ def test_journal_endpoint_returns_posted_entries(client, db):
 
 
 def test_expense_rules_endpoint_returns_five_rules_with_outlet_flag(client, db):
-    _seed(db)
+    owner = _seed(db)
+    as_tenant(owner.id)
     response = client.get("/api/financial/expense-rules")
     assert response.status_code == 200
 
@@ -219,7 +226,8 @@ def test_expense_rules_endpoint_returns_five_rules_with_outlet_flag(client, db):
 
 
 def test_create_expense_endpoint_rejects_missing_outlet_for_outlet_scoped_rule(client, db):
-    _seed(db)
+    owner = _seed(db)
+    as_tenant(owner.id)
     response = client.post("/api/financial/expenses", json={
         "category": "Bubble Wrap", "amount": 50_000, "expense_date": "2026-08-01", "rule_no": 25,
     })

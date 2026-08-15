@@ -11,6 +11,7 @@ from app.services.auth_service import hash_new_password
 from app.services.chart_of_accounts_service import seed_accounts
 from app.services.inventory_service import create_product
 from app.services.journal_engine_service import seed_mapping_rules, seed_pos_payment_extension
+from tests.conftest import make_owner
 
 
 def _make_user(db, email, role, status="approved", is_active=True, owner_id=None):
@@ -45,8 +46,9 @@ def test_admin_denied_product_create(client, db):
 
 
 def test_admin_allowed_stock_adjust(client, db):
+    owner = make_owner(db)  # first User row -> id=1, matches client fixture's default tenant
     create_product(
-        db, sku="SKU-1", name="Produk Uji", description="", stock_qty=10,
+        db, owner.id, sku="SKU-1", name="Produk Uji", description="", stock_qty=10,
         reference_price=10_000, cogs_price=5_000, unit_label="Pcs", ppn_rate=11.0, channels=[],
     )
     _as_role(client, "admin")
@@ -56,11 +58,12 @@ def test_admin_allowed_stock_adjust(client, db):
 
 
 def test_admin_allowed_pos_sales(client, db):
-    seed_accounts(db)
+    owner = make_owner(db)  # first User row -> id=1, matches client fixture's default tenant
+    seed_accounts(db, owner.id)
     seed_mapping_rules(db)
     seed_pos_payment_extension(db)
     db.add(Outlet(kode_outlet="OUT-1", nama_outlet="Toko Utama"))
-    db.add(Product(sku="SKU-1", name="Kopi Susu", reference_price=18_000, cogs_price=8_000, stock_qty=10))
+    db.add(Product(owner_id=owner.id, sku="SKU-1", name="Kopi Susu", reference_price=18_000, cogs_price=8_000, stock_qty=10))
     db.commit()
 
     _as_role(client, "admin")

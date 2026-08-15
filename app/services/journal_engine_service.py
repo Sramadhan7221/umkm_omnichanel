@@ -32,14 +32,14 @@ from sqlalchemy.orm import Session
 
 from app.models.canonical import CHANNEL_RECEIVABLE_ACCOUNT, CHANNEL_REVENUE_ACCOUNT, Channel
 from app.models.db_models import (
-    Account,
     Expense,
     JournalEntry,
     OmniOrder,
-    Product,
     Settlement,
     TransactionMappingRule,
 )
+from app.services.chart_of_accounts_service import get_account
+from app.services.inventory_service import get_product
 from app.services.order_service import CHANNEL_LABELS
 
 CSV_PATH = Path(__file__).resolve().parent.parent.parent / "docs" / "transaction_mapping_matrix.csv"
@@ -144,6 +144,7 @@ def seed_pos_payment_extension(db: Session) -> None:
 def post_journal(
     db: Session,
     *,
+    owner_id: int,
     kode_debet: str,
     kode_kredit: str,
     nominal: float,
@@ -160,11 +161,12 @@ def post_journal(
     if nominal <= 0:
         return None
 
-    akun_debet = db.get(Account, kode_debet)
-    akun_kredit = db.get(Account, kode_kredit)
+    akun_debet = get_account(db, owner_id, kode_debet)
+    akun_kredit = get_account(db, owner_id, kode_kredit)
 
     entry = JournalEntry(
         no_jurnal=f"JE-{uuid.uuid4().hex[:10].upper()}",
+        owner_id=owner_id,
         tanggal=tanggal,
         kode_debet=kode_debet,
         nama_akun_debet=akun_debet.nama_akun,
@@ -190,13 +192,13 @@ def _order_label(order: OmniOrder) -> str:
     return "Nota" if order.channel == "Offline POS" else "Pesanan"
 
 
-def _compute_cogs_total(db: Session, order: OmniOrder) -> float:
+def _compute_cogs_total(db: Session, owner_id: int, order: OmniOrder) -> float:
     """qty x cogs_price summed across an order's items — shared by the
     original COGS posting (rule #24, below) and Epic G's retur stock-recovery
     reversal (rule #20), so the two always agree on the same amount."""
     cogs_total = 0.0
     for item in order.items:
-        product = db.get(Product, item.sku)
+        product = get_product(db, owner_id, item.sku)
         if product is None:
             continue  # SKU not in catalog — same skip-if-missing behavior as deduct_stock_for_order
         cogs_total += item.quantity * product.cogs_price
@@ -208,9 +210,9 @@ def _post_cogs(db: Session, order: OmniOrder) -> JournalEntry | None:
     (online order completion and POS Kasir) so the qty x cogs_price logic
     isn't duplicated."""
     label = _order_label(order)
-    cogs_total = _compute_cogs_total(db, order)
+    cogs_total = _compute_cogs_total(db, order.owner_id, order)
     return post_journal(
-        db, kode_debet="5110", kode_kredit="1131", nominal=cogs_total,
+        db, owner_id=order.owner_id, kode_debet="5110", kode_kredit="1131", nominal=cogs_total,
         tanggal=order.order_time, sumber_dokumen=f"{label} {order.platform_order_id}",
         keterangan=f"HPP {label.lower()} {order.platform_order_id}",
         rule_no=_COGS_RULE_NO, order_id=order.platform_order_id,
@@ -225,7 +227,8 @@ def post_order_completed_journal(db: Session, order: OmniOrder) -> list[JournalE
 
     entries = []
     entries.append(post_journal(
-        db, kode_debet=receivable_account, kode_kredit=revenue_account, nominal=order.gross_amount,
+        db, owner_id=order.owner_id, kode_debet=receivable_account, kode_kredit=revenue_account,
+        nominal=order.gross_amount,
         tanggal=order.order_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
         keterangan=f"Penjualan bruto {order.channel} pesanan selesai",
         rule_no=revenue_rule_no, order_id=order.platform_order_id,
@@ -237,7 +240,8 @@ def post_order_completed_journal(db: Session, order: OmniOrder) -> list[JournalE
             continue  # no matching pattern in the 32-row matrix for this fee category — documented gap
         debit_account, rule_no = mapping
         entries.append(post_journal(
-            db, kode_debet=debit_account, kode_kredit=receivable_account, nominal=fee.amount,
+            db, owner_id=order.owner_id, kode_debet=debit_account, kode_kredit=receivable_account,
+            nominal=fee.amount,
             tanggal=order.order_time, sumber_dokumen=f"Pesanan {order.platform_order_id}",
             keterangan=f"{fee.category} ({fee.label}) - {order.channel}",
             rule_no=rule_no, order_id=order.platform_order_id,
@@ -258,7 +262,11 @@ def _pos_original_payment_account(db: Session, order: OmniOrder) -> str:
     rule_no is one of the POS payment rules."""
     original = (
         db.query(JournalEntry)
-        .filter(JournalEntry.order_id == order.platform_order_id, JournalEntry.rule_no.in_(POS_PAYMENT_RULE_NOS))
+        .filter(
+            JournalEntry.owner_id == order.owner_id,
+            JournalEntry.order_id == order.platform_order_id,
+            JournalEntry.rule_no.in_(POS_PAYMENT_RULE_NOS),
+        )
         .one()
     )
     return original.kode_debet
@@ -274,7 +282,8 @@ def post_order_refunded_journal(db: Session, order: OmniOrder) -> list[JournalEn
 
     label = _order_label(order)
     entry = post_journal(
-        db, kode_debet="4212", kode_kredit=receivable_account, nominal=order.gross_amount,
+        db, owner_id=order.owner_id, kode_debet="4212", kode_kredit=receivable_account,
+        nominal=order.gross_amount,
         tanggal=order.updated_time, sumber_dokumen=f"{label} {order.platform_order_id}",
         keterangan=f"Retur/pembatalan {label.lower()} {order.channel}",
         rule_no=rule_no, order_id=order.platform_order_id,
@@ -288,9 +297,9 @@ def post_retur_stock_recovery_journal(db: Session, order: OmniOrder) -> JournalE
     amount rule #24 originally expensed via the shared
     _compute_cogs_total, so HPP/Persediaan net back to their pre-sale state."""
     label = _order_label(order)
-    cogs_total = _compute_cogs_total(db, order)
+    cogs_total = _compute_cogs_total(db, order.owner_id, order)
     return post_journal(
-        db, kode_debet="1131", kode_kredit="5110", nominal=cogs_total,
+        db, owner_id=order.owner_id, kode_debet="1131", kode_kredit="5110", nominal=cogs_total,
         tanggal=order.updated_time, sumber_dokumen=f"{label} {order.platform_order_id}",
         keterangan=f"Pemulihan stok retur {label.lower()} {order.platform_order_id}",
         rule_no=20, order_id=order.platform_order_id,
@@ -305,11 +314,12 @@ def post_pos_sale_journal(db: Session, order: OmniOrder, rule_no: int) -> list[J
     8's 1111 Kas di Tangan is outlet-scoped) rather than a hardcoded "1111"
     check."""
     rule = db.get(TransactionMappingRule, rule_no)
-    akun_debet = db.get(Account, rule.kode_debet)
+    akun_debet = get_account(db, order.owner_id, rule.kode_debet)
     outlet_id = order.outlet_id if akun_debet.is_outlet_scoped else None
 
     entries = [post_journal(
-        db, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit, nominal=order.gross_amount,
+        db, owner_id=order.owner_id, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit,
+        nominal=order.gross_amount,
         tanggal=order.order_time, sumber_dokumen=f"Nota {order.platform_order_id}",
         keterangan=f"{rule.event_trigger} - {order.platform_order_id}",
         rule_no=rule_no, outlet_id=outlet_id, order_id=order.platform_order_id,
@@ -326,7 +336,8 @@ def post_settlement_journal(db: Session, settlement: Settlement) -> JournalEntry
     rule = db.get(TransactionMappingRule, rule_no)
 
     return post_journal(
-        db, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit, nominal=settlement.payout_amount,
+        db, owner_id=settlement.owner_id, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit,
+        nominal=settlement.payout_amount,
         tanggal=settlement.settlement_date, sumber_dokumen=f"Settlement {settlement.settlement_id}",
         keterangan=f"Pencairan dana {settlement.channel} ke bank",
         rule_no=rule_no, settlement_id=settlement.settlement_id,
@@ -336,17 +347,18 @@ def post_settlement_journal(db: Session, settlement: Settlement) -> JournalEntry
 def post_expense_journal(db: Session, expense: Expense) -> JournalEntry | None:
     rule = db.get(TransactionMappingRule, expense.rule_no)
     return post_journal(
-        db, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit, nominal=expense.amount,
+        db, owner_id=expense.owner_id, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit,
+        nominal=expense.amount,
         tanggal=expense.expense_date, sumber_dokumen=f"Biaya #{expense.id}",
         keterangan=expense.note or expense.category,
         rule_no=expense.rule_no, status="MANUAL", outlet_id=expense.outlet_id, expense_id=expense.id,
     )
 
 
-def list_journal_entries(db: Session, start: datetime, end: datetime) -> list[JournalEntry]:
+def list_journal_entries(db: Session, owner_id: int, start: datetime, end: datetime) -> list[JournalEntry]:
     return (
         db.query(JournalEntry)
-        .filter(JournalEntry.tanggal >= start, JournalEntry.tanggal <= end)
+        .filter(JournalEntry.owner_id == owner_id, JournalEntry.tanggal >= start, JournalEntry.tanggal <= end)
         .order_by(JournalEntry.tanggal.desc())
         .all()
     )

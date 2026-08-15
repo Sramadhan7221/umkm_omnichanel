@@ -7,12 +7,14 @@ app/services/outlet_service.py docstring) and has no tests here yet.
 from datetime import datetime
 
 from app.models.db_models import OmniOrder, Outlet
+from app.services.order_service import get_order
 from app.services.outlet_service import (
     _INITIAL_OUTLETS,
     create_outlet,
     seed_outlets,
     set_active,
 )
+from tests.conftest import make_owner
 
 
 def test_seed_creates_initial_outlets(db):
@@ -87,19 +89,22 @@ def test_set_active_raises_for_unknown_code(db):
 
 
 def test_omni_order_outlet_id_is_optional_and_accepts_a_real_outlet(db):
+    owner = make_owner(db)
     seed_outlets(db)
     kode_outlet = _INITIAL_OUTLETS[0][0]
 
     online_order = OmniOrder(
+        owner_id=owner.id,
         platform_order_id="ORD-ONLINE-1", channel="shopee", fulfillment_type="shipment",
         status="new", order_time=datetime.utcnow(),
     )
     offline_order = OmniOrder(
+        owner_id=owner.id,
         platform_order_id="ORD-POS-1", channel="offline_pos", fulfillment_type="shipment",
         status="new", order_time=datetime.utcnow(), outlet_id=kode_outlet,
     )
     db.add_all([online_order, offline_order])
     db.commit()
 
-    assert db.get(OmniOrder, "ORD-ONLINE-1").outlet_id is None
-    assert db.get(OmniOrder, "ORD-POS-1").outlet_id == kode_outlet
+    assert get_order(db, owner.id, "ORD-ONLINE-1").outlet_id is None
+    assert get_order(db, owner.id, "ORD-POS-1").outlet_id == kode_outlet

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.routers.auth import require_role
 from app.services.platform_service import list_platforms, set_active
+from app.services.tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/platforms", tags=["platforms"], dependencies=[Depends(require_role("owner"))])
 
@@ -19,8 +20,8 @@ class ToggleRequest(BaseModel):
 
 
 @router.get("")
-def list_all(db: Session = Depends(get_db)):
-    platforms = list_platforms(db)
+def list_all(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
+    platforms = list_platforms(db, owner_id)
     return [
         {
             "code": p.code,
@@ -34,9 +35,9 @@ def list_all(db: Session = Depends(get_db)):
 
 
 @router.post("/{code}/toggle")
-def toggle(code: str, body: ToggleRequest, db: Session = Depends(get_db)):
+def toggle(code: str, body: ToggleRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     try:
-        platform = set_active(db, code, body.is_active)
+        platform = set_active(db, owner_id, code, body.is_active)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return {"code": platform.code, "is_active": platform.is_active}

@@ -15,6 +15,7 @@ from app.services.reconciliation_service import (
     get_reconciliation_summary,
     list_settlements,
 )
+from app.services.tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/reconciliation", tags=["reconciliation"], dependencies=[Depends(require_role("owner"))])
 
@@ -26,10 +27,10 @@ def _resolve_period(start: str | None, end: str | None) -> tuple[datetime, datet
 
 
 @router.post("/generate")
-def generate(db: Session = Depends(get_db)):
+def generate(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Simulate importing a new platform payout batch for any order that
     doesn't have a settlement yet."""
-    created = generate_settlements(db)
+    created = generate_settlements(db, owner_id)
     return {"created": created}
 
 
@@ -38,9 +39,10 @@ def summary(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    return get_reconciliation_summary(db, start_dt, end_dt)
+    return get_reconciliation_summary(db, owner_id, start_dt, end_dt)
 
 
 @router.get("/settlements")
@@ -49,9 +51,10 @@ def settlements(
     end: str | None = Query(default=None),
     status: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    items = list_settlements(db, start_dt, end_dt, status)
+    items = list_settlements(db, owner_id, start_dt, end_dt, status)
     return [
         {
             "settlement_id": s.settlement_id,

@@ -51,14 +51,25 @@ FEE_CATEGORY_LABELS = {
 }
 
 
-def upsert_from_canonical(db: Session, order: CanonicalOrder) -> OmniOrder:
+def get_order(db: Session, owner_id: int, platform_order_id: str) -> OmniOrder | None:
+    """Resolves an OmniOrder by its business order id within one owner's
+    orders — replaces db.get(OmniOrder, platform_order_id), which stopped
+    working once platform_order_id became non-unique across owners."""
+    return (
+        db.query(OmniOrder)
+        .filter(OmniOrder.owner_id == owner_id, OmniOrder.platform_order_id == platform_order_id)
+        .first()
+    )
+
+
+def upsert_from_canonical(db: Session, owner_id: int, order: CanonicalOrder) -> OmniOrder:
     """Create or update an OmniOrder row (+ its items/fees) from a
     CanonicalOrder instance. Mirrors what a real webhook handler would do
     once live platform adapters replace the mock ones."""
 
-    db_order = db.get(OmniOrder, order.platform_order_id)
+    db_order = get_order(db, owner_id, order.platform_order_id)
     if db_order is None:
-        db_order = OmniOrder(platform_order_id=order.platform_order_id)
+        db_order = OmniOrder(owner_id=owner_id, platform_order_id=order.platform_order_id)
         db.add(db_order)
 
     db_order.channel = CHANNEL_LABELS[order.channel.value]
@@ -97,7 +108,7 @@ def upsert_from_canonical(db: Session, order: CanonicalOrder) -> OmniOrder:
     return db_order
 
 
-def process_retur(db: Session, platform_order_id: str, restore_stock: bool) -> OmniOrder:
+def process_retur(db: Session, owner_id: int, platform_order_id: str, restore_stock: bool) -> OmniOrder:
     """Epic G — a real status transition (not just flipping a field): only
     a completed order has revenue/HPP to reverse in the first place.
     journal_engine_service is imported inside the function (not at module
@@ -108,7 +119,7 @@ def process_retur(db: Session, platform_order_id: str, restore_stock: bool) -> O
         post_retur_stock_recovery_journal,
     )
 
-    order = db.get(OmniOrder, platform_order_id)
+    order = get_order(db, owner_id, platform_order_id)
     if order is None:
         raise ValueError(f"Pesanan '{platform_order_id}' tidak ditemukan")
     if order.status == STATUS_LABELS["refunded"]:
@@ -124,7 +135,7 @@ def process_retur(db: Session, platform_order_id: str, restore_stock: bool) -> O
     post_order_refunded_journal(db, order)
 
     if restore_stock:
-        restore_stock_for_order(db, order)
+        restore_stock_for_order(db, owner_id, order)
         post_retur_stock_recovery_journal(db, order)
 
     return order

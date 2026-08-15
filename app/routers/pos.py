@@ -13,6 +13,7 @@ from app.database import get_db
 from app.routers.auth import require_role
 from app.services.journal_engine_service import list_pos_payment_rules
 from app.services.pos_service import create_pos_sale, get_receipt
+from app.services.tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/pos", tags=["pos"], dependencies=[Depends(require_role("owner", "admin"))])
 
@@ -43,22 +44,22 @@ def payment_methods(db: Session = Depends(get_db)):
 
 
 @router.post("/sales")
-def create_sale(body: SaleCreateRequest, db: Session = Depends(get_db)):
+def create_sale(body: SaleCreateRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     try:
         order = create_pos_sale(
-            db, outlet_id=body.outlet_id, rule_no=body.rule_no,
+            db, owner_id, outlet_id=body.outlet_id, rule_no=body.rule_no,
             items=[item.model_dump() for item in body.items],
             customer_ref=body.customer_ref,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    return get_receipt(db, order.platform_order_id)
+    return get_receipt(db, owner_id, order.platform_order_id)
 
 
 @router.get("/sales/{nota_no}")
-def get_sale_receipt(nota_no: str, db: Session = Depends(get_db)):
-    receipt = get_receipt(db, nota_no)
+def get_sale_receipt(nota_no: str, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
+    receipt = get_receipt(db, owner_id, nota_no)
     if receipt is None:
         raise HTTPException(status_code=404, detail="Nota tidak ditemukan")
     return receipt

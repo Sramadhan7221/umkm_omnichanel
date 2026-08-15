@@ -22,17 +22,17 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.canonical import CanonicalOrder, Channel, FulfillmentType, OrderItem, OrderStatus
-from app.models.db_models import JournalEntry, OmniOrder, Outlet, Product, TransactionMappingRule
-from app.services.inventory_service import deduct_stock_for_order
+from app.models.db_models import JournalEntry, OmniOrder, Outlet, TransactionMappingRule
+from app.services.inventory_service import deduct_stock_for_order, get_product
 from app.services.journal_engine_service import POS_PAYMENT_RULE_NOS, post_pos_sale_journal
-from app.services.order_service import upsert_from_canonical
+from app.services.order_service import get_order, upsert_from_canonical
 
 
-def generate_nota_number(db: Session) -> str:
+def generate_nota_number(db: Session, owner_id: int) -> str:
     prefix = f"NT-{datetime.utcnow():%Y%m}"
     existing = (
         db.query(OmniOrder)
-        .filter(OmniOrder.platform_order_id.like(f"{prefix}%"))
+        .filter(OmniOrder.owner_id == owner_id, OmniOrder.platform_order_id.like(f"{prefix}%"))
         .count()
     )
     return f"{prefix}{existing + 1:03d}"
@@ -40,6 +40,7 @@ def generate_nota_number(db: Session) -> str:
 
 def create_pos_sale(
     db: Session,
+    owner_id: int,
     outlet_id: str,
     rule_no: int,
     items: list[dict],
@@ -57,7 +58,7 @@ def create_pos_sale(
 
     order_items = []
     for line in items:
-        product = db.get(Product, line["sku"])
+        product = get_product(db, owner_id, line["sku"])
         if product is None:
             raise ValueError(f"SKU '{line['sku']}' tidak ditemukan di Master Barang")
         qty = int(line["qty"])
@@ -72,7 +73,7 @@ def create_pos_sale(
 
     gross_amount = sum(item.unit_price * item.quantity for item in order_items)
     now = datetime.utcnow()
-    nota_no = generate_nota_number(db)
+    nota_no = generate_nota_number(db, owner_id)
 
     canonical_order = CanonicalOrder(
         order_id=str(uuid.uuid4()),
@@ -91,21 +92,24 @@ def create_pos_sale(
         outlet_id=outlet_id,
     )
 
-    db_order = upsert_from_canonical(db, canonical_order)
-    deduct_stock_for_order(db, canonical_order)
+    db_order = upsert_from_canonical(db, owner_id, canonical_order)
+    deduct_stock_for_order(db, owner_id, canonical_order)
     post_pos_sale_journal(db, db_order, rule_no)
     return db_order
 
 
-def get_receipt(db: Session, platform_order_id: str) -> dict | None:
-    order = db.get(OmniOrder, platform_order_id)
+def get_receipt(db: Session, owner_id: int, platform_order_id: str) -> dict | None:
+    order = get_order(db, owner_id, platform_order_id)
     if order is None or order.channel != "Offline POS":
         return None
 
     outlet = db.get(Outlet, order.outlet_id) if order.outlet_id else None
     payment_entry = (
         db.query(JournalEntry)
-        .filter(JournalEntry.order_id == platform_order_id, JournalEntry.rule_no.in_(POS_PAYMENT_RULE_NOS))
+        .filter(
+            JournalEntry.owner_id == owner_id,
+            JournalEntry.order_id == platform_order_id, JournalEntry.rule_no.in_(POS_PAYMENT_RULE_NOS),
+        )
         .first()
     )
     payment_rule = db.get(TransactionMappingRule, payment_entry.rule_no) if payment_entry else None

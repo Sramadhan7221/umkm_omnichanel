@@ -7,7 +7,8 @@ Bagian 4 and docs/chart_of_accounts.csv (source of truth for account data).
 import csv
 
 from app.models.db_models import Account
-from app.services.chart_of_accounts_service import CSV_PATH, seed_accounts
+from app.services.chart_of_accounts_service import CSV_PATH, get_account, seed_accounts
+from tests.conftest import as_tenant, make_owner
 
 
 def _csv_rows():
@@ -16,10 +17,11 @@ def _csv_rows():
 
 
 def test_seed_creates_exact_rows_from_csv(db):
-    seed_accounts(db)
+    owner = make_owner(db)
+    seed_accounts(db, owner.id)
     csv_rows = _csv_rows()
 
-    accounts = db.query(Account).all()
+    accounts = db.query(Account).filter(Account.owner_id == owner.id).all()
     assert len(accounts) == len(csv_rows)
 
     by_code = {a.kode_akun: a for a in accounts}
@@ -35,7 +37,9 @@ def test_seed_creates_exact_rows_from_csv(db):
 
 
 def test_accounts_endpoint_grouped_by_kelompok_utama(client, db):
-    seed_accounts(db)
+    owner = make_owner(db, email="owner1@example.com")
+    seed_accounts(db, owner.id)
+    as_tenant(owner.id)
 
     response = client.get("/api/financial/accounts")
     assert response.status_code == 200
@@ -54,10 +58,11 @@ def test_accounts_endpoint_grouped_by_kelompok_utama(client, db):
 
 
 def test_kas_di_tangan_is_outlet_scoped(db):
-    seed_accounts(db)
+    owner = make_owner(db)
+    seed_accounts(db, owner.id)
 
-    kas = db.get(Account, "1111")
+    kas = get_account(db, owner.id, "1111")
     assert kas.is_outlet_scoped is True
 
-    ewallet = db.get(Account, "1112")
+    ewallet = get_account(db, owner.id, "1112")
     assert ewallet.is_outlet_scoped is False

@@ -27,7 +27,7 @@ _DISCREPANCY_PROBABILITY = 0.15
 _DISCREPANCY_RANGE = (0.02, 0.08)
 
 
-def generate_settlements(db: Session) -> int:
+def generate_settlements(db: Session, owner_id: int) -> int:
     """Generate a Settlement row for every order that doesn't have one yet
     (simulates importing a new platform payout batch).
 
@@ -37,8 +37,10 @@ def generate_settlements(db: Session) -> int:
     bank-settlement legs, rules #10/#11, remain an unwired gap — no data
     source for "the bank confirmed this specific nota's funds arrived"
     exists yet, same treatment as Epic B's other unwired rules.)"""
-    already_settled = {s.platform_order_id for s in db.query(Settlement.platform_order_id).all()}
-    query = db.query(OmniOrder).filter(OmniOrder.channel != "Offline POS")
+    already_settled = {
+        s.platform_order_id for s in db.query(Settlement.platform_order_id).filter(Settlement.owner_id == owner_id).all()
+    }
+    query = db.query(OmniOrder).filter(OmniOrder.owner_id == owner_id, OmniOrder.channel != "Offline POS")
     orders = query.filter(~OmniOrder.platform_order_id.in_(already_settled)).all() \
         if already_settled else query.all()
 
@@ -57,6 +59,7 @@ def generate_settlements(db: Session) -> int:
 
         settlement = Settlement(
             settlement_id=f"SETL-{uuid.uuid4().hex[:10].upper()}",
+            owner_id=owner_id,
             platform_order_id=order.platform_order_id,
             channel=order.channel,
             expected_amount=expected,
@@ -74,10 +77,10 @@ def generate_settlements(db: Session) -> int:
     return created
 
 
-def get_reconciliation_summary(db: Session, start: datetime, end: datetime) -> dict:
+def get_reconciliation_summary(db: Session, owner_id: int, start: datetime, end: datetime) -> dict:
     settlements = (
         db.query(Settlement)
-        .filter(Settlement.settlement_date >= start, Settlement.settlement_date <= end)
+        .filter(Settlement.owner_id == owner_id, Settlement.settlement_date >= start, Settlement.settlement_date <= end)
         .all()
     )
 
@@ -109,10 +112,12 @@ def get_reconciliation_summary(db: Session, start: datetime, end: datetime) -> d
     }
 
 
-def list_settlements(db: Session, start: datetime, end: datetime, status: str | None = None) -> list[Settlement]:
+def list_settlements(
+    db: Session, owner_id: int, start: datetime, end: datetime, status: str | None = None,
+) -> list[Settlement]:
     query = (
         db.query(Settlement)
-        .filter(Settlement.settlement_date >= start, Settlement.settlement_date <= end)
+        .filter(Settlement.owner_id == owner_id, Settlement.settlement_date >= start, Settlement.settlement_date <= end)
     )
     if status:
         query = query.filter(Settlement.status == status)

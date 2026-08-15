@@ -16,23 +16,26 @@ from openpyxl import load_workbook
 from app.services.balance_sheet_service import get_balance_sheet, get_profit_loss
 from app.services.chart_of_accounts_service import seed_accounts
 from app.services.journal_engine_service import post_journal
+from tests.conftest import make_owner
 
 
 def _seed(db):
-    seed_accounts(db)
+    owner = make_owner(db)  # first User row -> id=1, matches client fixture's default tenant
+    seed_accounts(db, owner.id)
+    return owner
 
 
-def _post(db, kode_debet, kode_kredit, nominal, tanggal, **kwargs):
+def _post(db, owner_id, kode_debet, kode_kredit, nominal, tanggal, **kwargs):
     return post_journal(
-        db, kode_debet=kode_debet, kode_kredit=kode_kredit, nominal=nominal,
+        db, owner_id=owner_id, kode_debet=kode_debet, kode_kredit=kode_kredit, nominal=nominal,
         tanggal=tanggal, sumber_dokumen="test", keterangan="test", **kwargs,
     )
 
 
-def _standard_scenario(db, tanggal=datetime(2026, 8, 10)):
-    _post(db, "1121", "4111", 100_000, tanggal)  # revenue
-    _post(db, "5212", "1121", 5_000, tanggal)     # commission expense
-    _post(db, "5110", "1131", 40_000, tanggal)    # COGS
+def _standard_scenario(db, owner_id, tanggal=datetime(2026, 8, 10)):
+    _post(db, owner_id, "1121", "4111", 100_000, tanggal)  # revenue
+    _post(db, owner_id, "5212", "1121", 5_000, tanggal)     # commission expense
+    _post(db, owner_id, "5110", "1131", 40_000, tanggal)    # COGS
 
 
 EXPORT_ENDPOINTS = [
@@ -45,8 +48,8 @@ EXPORT_ENDPOINTS = [
 @pytest.mark.parametrize("url,_name", EXPORT_ENDPOINTS)
 @pytest.mark.parametrize("fmt", ["xlsx", "pdf"])
 def test_export_endpoint_returns_valid_file(client, db, url, _name, fmt):
-    _seed(db)
-    _standard_scenario(db)
+    owner = _seed(db)
+    _standard_scenario(db, owner.id)
 
     response = client.get(url + f"&format={fmt}")
     assert response.status_code == 200
@@ -65,7 +68,7 @@ def test_export_endpoint_returns_valid_file(client, db, url, _name, fmt):
 @pytest.mark.parametrize("url,_name", EXPORT_ENDPOINTS)
 @pytest.mark.parametrize("fmt", ["xlsx", "pdf"])
 def test_export_endpoint_succeeds_for_period_with_no_transactions(client, db, url, _name, fmt):
-    _seed(db)  # no journal entries posted at all
+    _seed(db)  # no owner activity/journal entries posted at all
 
     response = client.get(url + f"&format={fmt}")
     assert response.status_code == 200
@@ -84,9 +87,9 @@ def test_export_endpoint_rejects_unknown_format(client, db, url, _name):
 
 
 def test_balance_sheet_export_matches_on_screen_totals(client, db):
-    _seed(db)
-    _standard_scenario(db)
-    expected = get_balance_sheet(db, datetime(2026, 8, 31, 23, 59, 59))
+    owner = _seed(db)
+    _standard_scenario(db, owner.id)
+    expected = get_balance_sheet(db, owner.id, datetime(2026, 8, 31, 23, 59, 59))
 
     response = client.get("/api/financial/balance-sheet/export?as_of=2026-08-31&format=xlsx")
     wb = load_workbook(io.BytesIO(response.content))
@@ -98,9 +101,9 @@ def test_balance_sheet_export_matches_on_screen_totals(client, db):
 
 
 def test_profit_loss_export_matches_on_screen_totals(client, db):
-    _seed(db)
-    _standard_scenario(db)
-    expected = get_profit_loss(db, datetime(2026, 8, 1), datetime(2026, 8, 31))
+    owner = _seed(db)
+    _standard_scenario(db, owner.id)
+    expected = get_profit_loss(db, owner.id, datetime(2026, 8, 1), datetime(2026, 8, 31))
 
     response = client.get("/api/financial/profit-loss/export?start=2026-08-01&end=2026-08-31&format=xlsx")
     wb = load_workbook(io.BytesIO(response.content))

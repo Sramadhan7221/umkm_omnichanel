@@ -25,6 +25,7 @@ from app.services.financial_service import (
     record_pph_deposit,
 )
 from app.services.journal_engine_service import list_expense_rules, list_journal_entries
+from app.services.tenant_context import get_tenant_id
 
 router = APIRouter(prefix="/api/financial", tags=["financial"], dependencies=[Depends(require_role("owner"))])
 
@@ -46,8 +47,8 @@ class ExpenseCreateRequest(BaseModel):
 
 
 @router.get("/accounts")
-def accounts(db: Session = Depends(get_db)):
-    return list_accounts_grouped(db)
+def accounts(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
+    return list_accounts_grouped(db, owner_id)
 
 
 @router.get("/expenses")
@@ -55,9 +56,10 @@ def expenses(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    items = list_expenses(db, start_dt, end_dt)
+    items = list_expenses(db, owner_id, start_dt, end_dt)
     return [
         {
             "id": e.id,
@@ -71,11 +73,13 @@ def expenses(
 
 
 @router.post("/expenses")
-def create_expense(body: ExpenseCreateRequest, db: Session = Depends(get_db)):
+def create_expense(
+    body: ExpenseCreateRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id),
+):
     expense_date = datetime.fromisoformat(body.expense_date)
     try:
         expense = add_expense(
-            db, body.category, body.amount, body.note, expense_date,
+            db, owner_id, body.category, body.amount, body.note, expense_date,
             rule_no=body.rule_no, outlet_id=body.outlet_id,
         )
     except ValueError as exc:
@@ -84,10 +88,10 @@ def create_expense(body: ExpenseCreateRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/expense-rules")
-def expense_rules(db: Session = Depends(get_db)):
+def expense_rules(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     rules = list_expense_rules(db)
     kredit_accounts = {a.kode_akun: a for a in db.query(Account).filter(
-        Account.kode_akun.in_({r.kode_kredit for r in rules})
+        Account.owner_id == owner_id, Account.kode_akun.in_({r.kode_kredit for r in rules})
     ).all()}
     return [
         {
@@ -116,25 +120,31 @@ class PphDepositRequest(BaseModel):
 
 
 @router.get("/pph/summary")
-def pph_summary(period: str | None = Query(default=None), db: Session = Depends(get_db)):
+def pph_summary(
+    period: str | None = Query(default=None), db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id),
+):
     period = period or f"{datetime.utcnow():%Y-%m}"
-    return get_pph_summary(db, period)
+    return get_pph_summary(db, owner_id, period)
 
 
 @router.post("/pph/close-month")
-def pph_close_month(body: CloseMonthRequest, db: Session = Depends(get_db)):
+def pph_close_month(
+    body: CloseMonthRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id),
+):
     try:
-        entry = close_month_pph(db, body.period)
+        entry = close_month_pph(db, owner_id, body.period)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"no_jurnal": entry.no_jurnal, "nominal": entry.nominal}
 
 
 @router.post("/pph/deposit")
-def pph_deposit(body: PphDepositRequest, db: Session = Depends(get_db)):
+def pph_deposit(
+    body: PphDepositRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id),
+):
     deposit_date = datetime.fromisoformat(body.deposit_date)
     try:
-        entry = record_pph_deposit(db, body.amount, deposit_date)
+        entry = record_pph_deposit(db, owner_id, body.amount, deposit_date)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"no_jurnal": entry.no_jurnal, "nominal": entry.nominal}
@@ -145,9 +155,10 @@ def profit_loss(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    return get_profit_loss(db, start_dt, end_dt)
+    return get_profit_loss(db, owner_id, start_dt, end_dt)
 
 
 @router.get("/profit-loss/export")
@@ -156,9 +167,10 @@ def profit_loss_export(
     end: str | None = Query(default=None),
     format: str = Query(default="pdf"),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    data = get_profit_loss(db, start_dt, end_dt)
+    data = get_profit_loss(db, owner_id, start_dt, end_dt)
     try:
         content, media_type, ext = export_profit_loss(data, format)
     except ValueError as exc:
@@ -171,10 +183,11 @@ def profit_loss_export(
 def balance_sheet(
     as_of: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     # Same "whole day inclusive" convention as _resolve_period's `end` handling.
     as_of_dt = datetime.fromisoformat(as_of) + timedelta(days=1) if as_of else datetime.utcnow()
-    return get_balance_sheet(db, as_of_dt)
+    return get_balance_sheet(db, owner_id, as_of_dt)
 
 
 @router.get("/balance-sheet/export")
@@ -182,9 +195,10 @@ def balance_sheet_export(
     as_of: str | None = Query(default=None),
     format: str = Query(default="pdf"),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     as_of_dt = datetime.fromisoformat(as_of) + timedelta(days=1) if as_of else datetime.utcnow()
-    data = get_balance_sheet(db, as_of_dt)
+    data = get_balance_sheet(db, owner_id, as_of_dt)
     try:
         content, media_type, ext = export_balance_sheet(data, format)
     except ValueError as exc:
@@ -194,10 +208,10 @@ def balance_sheet_export(
 
 
 @router.get("/kas-per-outlet")
-def kas_per_outlet(db: Session = Depends(get_db)):
+def kas_per_outlet(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Backs the /outlets page's real cash-per-outlet report — see
     balance_sheet_service.get_kas_per_outlet."""
-    return get_kas_per_outlet(db)
+    return get_kas_per_outlet(db, owner_id)
 
 
 @router.get("/journal")
@@ -205,9 +219,10 @@ def journal(
     start: str | None = Query(default=None),
     end: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    entries = list_journal_entries(db, start_dt, end_dt)
+    entries = list_journal_entries(db, owner_id, start_dt, end_dt)
     return [
         {
             "no_jurnal": e.no_jurnal,
@@ -231,9 +246,10 @@ def journal_export(
     end: str | None = Query(default=None),
     format: str = Query(default="pdf"),
     db: Session = Depends(get_db),
+    owner_id: int = Depends(get_tenant_id),
 ):
     start_dt, end_dt = _resolve_period(start, end)
-    entries = list_journal_entries(db, start_dt, end_dt)
+    entries = list_journal_entries(db, owner_id, start_dt, end_dt)
     try:
         content, media_type, ext = export_journal(entries, start_dt, end_dt, format)
     except ValueError as exc:
