@@ -19,13 +19,13 @@ from app.mock_adapters.mock_grabfood import MockGrabFoodAdapter
 from app.mock_adapters.mock_shopee import MockShopeeAdapter
 from app.mock_adapters.mock_tiktokshop import MockTikTokShopAdapter
 from app.models.db_models import OmniOrder
-from app.routers.auth import require_login_api
+from app.routers.auth import require_role
 from app.services.inventory_service import deduct_stock_for_order, get_products_for_channel
 from app.services.journal_engine_service import post_order_completed_journal, post_order_refunded_journal
 from app.services.order_service import process_retur, upsert_from_canonical
 from app.services.platform_service import list_active_platforms
 
-router = APIRouter(prefix="/api", tags=["orders"], dependencies=[Depends(require_login_api)])
+router = APIRouter(prefix="/api", tags=["orders"], dependencies=[Depends(require_role("owner"))])
 
 _ADAPTER_REGISTRY = {
     "shopee": MockShopeeAdapter,

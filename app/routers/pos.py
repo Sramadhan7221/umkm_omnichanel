@@ -10,11 +10,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.auth import require_login_api
+from app.routers.auth import require_role
 from app.services.journal_engine_service import list_pos_payment_rules
 from app.services.pos_service import create_pos_sale, get_receipt
 
-router = APIRouter(prefix="/api/pos", tags=["pos"], dependencies=[Depends(require_login_api)])
+router = APIRouter(prefix="/api/pos", tags=["pos"], dependencies=[Depends(require_role("owner", "admin"))])
 
 
 class SaleItem(BaseModel):

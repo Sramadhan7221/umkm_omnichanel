@@ -1,11 +1,13 @@
 """
-Auth service (Fase 5) — minimal email/password auth for a single default
-admin account. Uses stdlib hashlib.pbkdf2_hmac for password hashing (no new
-pip dependency), and a random per-user salt stored alongside the hash.
+Auth service (Fase 5, extended Customer Request 1 Epic I) — email/password
+auth with 3 roles (superadmin/owner/admin). Uses stdlib hashlib.pbkdf2_hmac
+for password hashing (no new pip dependency), and a random per-user salt
+stored alongside the hash.
 
-This is deliberately simple (one seeded admin account, no registration UI,
-no password reset flow) — enough to gate the demo behind a login screen for
-a presentation, not a full user-management system.
+Only a single Superadmin account is seeded at startup. Owner accounts are
+created via self-service registration (Epic J, not yet built) and require
+Superadmin approval (`status`); Admin accounts are created by an Owner via
+`POST /api/auth/create-admin` and need no separate approval.
 """
 
 from __future__ import annotations
@@ -16,8 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.models.db_models import User
 
-DEFAULT_ADMIN_EMAIL = "admin@umkmapp.com"
-DEFAULT_ADMIN_PASSWORD = "Qwertyz!1"
+DEFAULT_SUPERADMIN_EMAIL = "superadmin@umkmapp.com"
+DEFAULT_SUPERADMIN_PASSWORD = "Qwertyz!1"
 
 _PBKDF2_ITERATIONS = 260_000
 
@@ -38,11 +40,18 @@ def verify_password(password: str, salt_hex: str, hash_hex: str) -> bool:
 
 
 def seed_admin_user(db: Session) -> None:
-    """Create the default admin account if no users exist yet."""
+    """Create the default Superadmin account if no users exist yet."""
     if db.query(User).count() > 0:
         return
-    salt_hex, hash_hex = hash_new_password(DEFAULT_ADMIN_PASSWORD)
-    db.add(User(email=DEFAULT_ADMIN_EMAIL, password_hash=hash_hex, password_salt=salt_hex))
+    salt_hex, hash_hex = hash_new_password(DEFAULT_SUPERADMIN_PASSWORD)
+    db.add(User(
+        email=DEFAULT_SUPERADMIN_EMAIL,
+        password_hash=hash_hex,
+        password_salt=salt_hex,
+        role="superadmin",
+        status="approved",
+        is_active=True,
+    ))
     db.commit()
 
 

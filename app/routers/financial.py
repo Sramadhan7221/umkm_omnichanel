@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.db_models import Account
-from app.routers.auth import require_login_api
+from app.routers.auth import require_role
 from app.services.balance_sheet_service import get_balance_sheet, get_kas_per_outlet, get_profit_loss
 from app.services.chart_of_accounts_service import list_accounts_grouped
 from app.services.export_service import export_balance_sheet, export_journal, export_profit_loss
@@ -26,7 +26,7 @@ from app.services.financial_service import (
 )
 from app.services.journal_engine_service import list_expense_rules, list_journal_entries
 
-router = APIRouter(prefix="/api/financial", tags=["financial"], dependencies=[Depends(require_login_api)])
+router = APIRouter(prefix="/api/financial", tags=["financial"], dependencies=[Depends(require_role("owner"))])
 
 
 def _resolve_period(start: str | None, end: str | None) -> tuple[datetime, datetime]:

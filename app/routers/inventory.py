@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.auth import require_login_api
+from app.routers.auth import require_role
 from app.services.inventory_service import (
     adjust_stock,
     create_product,
@@ -27,7 +27,14 @@ from app.services.inventory_service import (
     update_product,
 )
 
-router = APIRouter(prefix="/api/inventory", tags=["inventory"], dependencies=[Depends(require_login_api)])
+# Owner + Admin baseline (Admin's granted "update stok" capability lives
+# here: list, adjust, movements, and the read-only detail lookup that backs
+# the product detail page). Create/edit/audit routes below add an extra
+# owner-only Depends on top — see Customer Request 1 Epic I Keputusan Scope
+# CR1 §5.
+router = APIRouter(
+    prefix="/api/inventory", tags=["inventory"], dependencies=[Depends(require_role("owner", "admin"))]
+)
 
 
 class StockAdjustRequest(BaseModel):
@@ -122,7 +129,7 @@ def _serialize_product_full(p) -> dict:
     }
 
 
-@router.post("/products")
+@router.post("/products", dependencies=[Depends(require_role("owner"))])
 def add_product(
     sku: str = Form(...),
     name: str = Form(...),
@@ -168,7 +175,7 @@ def product_detail(sku: str, db: Session = Depends(get_db)):
     return _serialize_product_full(product)
 
 
-@router.put("/products/{sku}")
+@router.put("/products/{sku}", dependencies=[Depends(require_role("owner"))])
 def edit_product(
     sku: str,
     name: str | None = Form(None),
@@ -223,7 +230,7 @@ def edit_product(
     return _serialize_product_full(product)
 
 
-@router.get("/products/{sku}/audit")
+@router.get("/products/{sku}/audit", dependencies=[Depends(require_role("owner"))])
 def product_audit_trail(sku: str, db: Session = Depends(get_db)):
     """Edit history (name/price/description/image changes) for one SKU."""
     logs = get_audit_log(db, sku)

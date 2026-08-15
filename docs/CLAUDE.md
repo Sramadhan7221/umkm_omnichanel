@@ -11,7 +11,7 @@ Memori jangka panjang untuk semua sesi kerja di project ini. Baca file ini di aw
 1. **Double-entry MENGGANTIKAN laporan lama, bukan berdampingan.** `get_income_statement()` dan `get_cash_flow()` di `financial_service.py` akan di-deprecate setelah engine berbasis saldo akun (Epic F) tervalidasi. `financial.py` (router) dan `financial.html` diarahkan ke engine baru — jangan pertahankan sebagai mode kedua/opsional.
 2. **Tidak ada backfill jurnal retroaktif.** Aplikasi belum go-live, start from zero. Database demo (OmniOrder, Settlement yang sudah ada) boleh di-reset sebelum Epic A/B mulai dipakai. Jangan bangun job migrasi data historis.
 3. **Master Barang adalah single source of truth harga di semua kanal, termasuk POS Kasir.** Harga jual + HPP ditentukan owner di Master Barang, lalu disinkronkan keluar ke tiap platform. Kasir POS tidak boleh input/override harga manual — selalu ambil read-only dari Master Barang.
-4. **Kas fisik terpisah per outlet, tapi Neraca tampilkan baris konsolidasi.** Tiap outlet fisik punya saldo kas sendiri (akun 1111 Kas di Tangan, `is_outlet_scoped=true`), tapi Neraca tetap menjumlahkan semua outlet jadi satu baris, dengan breakdown per outlet di drill-down.
+4. ~~**Kas fisik terpisah per outlet, tapi Neraca tampilkan baris konsolidasi.**~~ **DIBATALKAN oleh Customer Request 1 (lihat bagian di bawah).** Skema multi-outlet (Epic H) dihapus total — kembali ke satu toko implisit. Baris ini dipertahankan di sini sebagai catatan sejarah keputusan, BUKAN aturan aktif — jangan bangun ulang konsep outlet berdasarkan baris ini.
 
 ## Epic & Urutan Pengerjaan (dependency-aware)
 
@@ -100,3 +100,157 @@ Hasil observasi `app/models/db_models.py`, `app/models/canonical.py`, `app/mock_
 Modul akuntansi double-entry + POS offline SELESAI — semua 8 epic (A, H, D, B, C, E, F, G) dari `docs/Analisis_Kebutuhan_Modul_Akuntansi_POS.pdf` sudah diimplementasikan dan diverifikasi (test otomatis + verifikasi manual lewat server nyata di tiap epic, 64/64 test lulus dikonfirmasi ulang lewat re-run independen). Kedua item Task Backlog (Rule #25, Export PDF/Excel) juga sudah selesai — lihat Progress di atas. Item yang sengaja ditunda dari 32 baris matriks/task teknis (dicatat di atas per-epic, bukan lupa): rule #2/#10/#11/#15-18/#21-23/#27 (tidak ada sumber data/trigger), akun Laba Ditahan CoA formal + tutup buku tahunan, retur sebagian/per-item. Tidak ada task backlog konkret yang tersisa saat ini.
 
 **Catatan penting yang perlu direview manual (bukan bug, tapi keputusan bisnis yang dibuat otomatis):** migration checkpoint Epic F membandingkan net_profit engine lama (Rp 2.829.040, menghitung semua order apapun status, HPP tidak dikurangi) vs engine baru (Rp 116.240, hanya order Selesai, HPP dikurangi eksplisit) — CLAUDE.md mencatat ini "dikonfirmasi PO" tapi konfirmasi itu terjadi di sesi sebelumnya, bukan langsung dari Anda. Kalau metodologi baru ini belum pernah direview eksplisit, sebaiknya dicek dulu sebelum dianggap final.
+
+---
+
+# Customer Request 1 — Multi-Tenant User Management, Hapus Outlet, Forgot Password
+
+Ditambahkan 2026-08-15. Sumber: permintaan langsung dari Syahrul (bukan dari `docs/Analisis_Kebutuhan_Modul_Akuntansi_POS.pdf`), diklarifikasi lewat 3 pertanyaan sebelum task ditulis supaya tidak menebak. Empat permintaan asli: (1) hilangkan skema multi-outlet, (2) User Management dengan role Superadmin/Owner/Admin, (3) registrasi self-service untuk Owner, (4) forgot password lewat email. Dipecah jadi 5 epic dengan urutan dependency di bawah — **ini pekerjaan paling besar di project ini sejauh ini**, lebih besar dari gabungan Epic A–G, karena mengubah app dari single-business demo menjadi multi-tenant SaaS. Baca seluruh bagian ini sebelum mulai coding di epic manapun, jangan lompat ke tengah tanpa konteks epic sebelumnya.
+
+## Keputusan Scope CR1 — Sudah Final (dikonfirmasi user, jangan tanya ulang)
+
+1. **Multi-tenant: data terpisah penuh per Owner.** Tiap akun Owner adalah satu bisnis UMKM independen. Produk, Order, Chart of Accounts + saldo, Jurnal, Expense, Settlement, pengaturan Platform milik satu Owner TIDAK BOLEH terlihat atau tercampur dengan Owner lain. Admin yang dibuat oleh seorang Owner beroperasi di dalam data Owner itu saja.
+2. **Skema outlet dihapus total**, bukan disederhanakan jadi 1 outlet. Balik ke satu toko implisit per Owner (satu tenant = satu toko). Tidak ada model `Outlet`, tidak ada `outlet_id`, tidak ada laporan Kas per Outlet, tidak ada breakdown outlet di Neraca.
+3. **SMTP untuk forgot-password pakai Mailtrap (sandbox testing).** Email TIDAK benar-benar terkirim ke inbox pengguna asli — ini disengaja untuk tahap ujicoba, bukan bug. Desain kodenya tetap harus provider-agnostic (env var host/port/username/password/from-address via `smtplib` standar) supaya ganti ke provider produksi nanti tinggal ganti `.env`, tidak ubah kode.
+4. **Superadmin TIDAK punya akses ke fitur bisnis apa pun** (Produk, Order Inbox, Kasir POS, Financial, Neraca, Platforms, Reconciliation). Superadmin bukan tenant — tidak ada data bisnis yang bisa "dimiliki" Superadmin. Wewenangnya cuma 3: approve/reject registrasi Owner, dashboard jumlah+grafik Owner, nonaktifkan akun Owner. Ini keputusan eksplisit untuk menghindari ambiguitas "apakah Superadmin bisa lihat data tenant mana pun" — jawabannya TIDAK, tanpa kecuali, di iterasi ini.
+5. **Admin dibatasi ke 2 kapabilitas saja: update stok, dan Kasir POS.** Secara konkret (dipetakan ke endpoint yang sudah ada): Admin BOLEH akses `GET /api/inventory`, `GET /api/inventory/{sku}/movements`, `POST /api/inventory/{sku}/adjust` (endpoint stock-adjustment yang sudah ada di `app/routers/inventory.py`), dan seluruh `/api/pos/*` + halaman `/pos`. Admin DITOLAK (403) dari: `POST/PUT /api/inventory/products*` (create/edit produk — harga & HPP tetap wewenang Owner sesuai Keputusan Scope 3 di bagian atas dokumen ini), `/api/inventory/products/{sku}/audit`, seluruh `/api/financial/*`, `/api/order/*` (Order Inbox), `/api/platforms/*`, `/api/reconciliation/*`, dan halaman-halaman terkait (`/order_inbox`, `/financial`, `/neraca`, `/reconciliation`, `/platforms`, `/inventory/new`, `/inventory/{sku}/edit`).
+6. **Owner registrasi via status `pending`, bukan `is_active=False`.** Dipisah dua flag: `status` (pending/approved/rejected — hasil approval Superadmin) dan `is_active` (soft-disable, dipakai Superadmin untuk menonaktifkan Owner yang SUDAH approved, tanpa menghapus data). Login ditolak kalau `status != approved` ATAU `is_active == False`, dengan pesan error yang beda untuk tiap kasus supaya user tahu kenapa.
+
+## Epic Baru & Urutan Pengerjaan
+
+Urutan wajib: **I → J → K → L**, lalu **M kapan saja setelah I** (tidak bergantung ke J/K/L). Jangan kerjakan K atau L sebelum I selesai — keduanya butuh kolom `role`/`owner_id` di `User` yang dibangun di Epic I.
+
+| Epic | Nama | Prioritas | Dependency | File utama |
+|---|---|---|---|---|
+| I | Fondasi User & Role (Superadmin/Owner/Admin) | P0 | Tidak ada (fondasi CR1) | `app/models/db_models.py` (`User`), `app/services/auth_service.py`, `app/routers/auth.py`, semua router yang perlu `require_role` |
+| J | Registrasi Owner (self-service) + Dashboard Approval Superadmin | P0 | Epic I | baru: `app/routers/registration.py` atau perluasan `auth.py`, baru: `app/services/user_admin_service.py`, baru: `app/templates/register.html`, `app/templates/superadmin_dashboard.html` |
+| K | Isolasi Data Multi-Tenant (`owner_id` di semua tabel bisnis) | P0 | Epic I (butuh `owner_id` di `User`), idealnya setelah J (supaya ada Owner sungguhan untuk uji isolasi) | `app/models/db_models.py` (`Account`, `OmniOrder`, `JournalEntry`, `Expense`, `Settlement`, `Product`, `Platform`), HAMPIR SEMUA file di `app/services/*.py` dan `app/routers/*.py` |
+| L | Hapus Skema Multi-Outlet | P0 | Epic K (Account/JournalEntry sudah diubah di K, lebih aman diubah lagi sekali jalan setelahnya) | Lihat daftar 25+ file di task teknis Epic L di bawah |
+| M | Forgot Password via Email (SMTP Mailtrap) | P1 | Epic I saja | `app/models/db_models.py` (baru: `PasswordResetToken`), baru: `app/services/email_service.py`, `app/routers/auth.py`, baru: `app/templates/forgot_password.html`, `app/templates/reset_password.html` |
+
+---
+
+### EPIC I — Fondasi User & Role (Superadmin / Owner / Admin)
+
+**Kenapa:** Semua epic CR1 lain bergantung pada `User` punya konsep role dan kepemilikan tenant. Saat ini `User` cuma `id/email/password_hash/password_salt/created_time` — satu akun admin generik tanpa role sama sekali (`app/services/auth_service.py` baris 1-8 eksplisit bilang ini "one seeded admin account, no registration UI, no password reset flow").
+
+**Task teknis:**
+1. Tambah kolom ke `User` (`app/models/db_models.py`): `role` (String, salah satu `"superadmin"|"owner"|"admin"`, nullable=False), `owner_id` (Integer, `ForeignKey("user.id")`, self-referential, nullable — diisi HANYA untuk role `admin`, menunjuk ke `User.id` milik Owner yang membuatnya), `status` (String, default `"approved"` — lihat catatan default di bawah), `is_active` (Boolean, default True — pola sama seperti `Outlet.is_active`/`Platform.is_active`).
+2. Ganti `seed_admin_user()` di `auth_service.py`: seed SATU akun `role="superadmin"`, `status="approved"`, `is_active=True` dengan kredensial default yang didokumentasikan ulang di docstring (jangan pakai email `admin@umkmapp.com` yang menyiratkan akses penuh — ganti mis. `superadmin@umkmapp.com`). Tidak ada Owner yang di-seed otomatis — Owner pertama harus lewat alur registrasi (Epic J).
+3. `request.session` saat login (`app/routers/auth.py::login`) simpan tambahan `role` dan `tenant_id` (dihitung: `user.id` kalau `role=="owner"`, `user.owner_id` kalau `role=="admin"`, `None` kalau `role=="superadmin"`) — supaya request berikutnya tidak perlu query `User` ulang untuk tahu scope data.
+4. Buat dependency baru `require_role(*roles)` di `auth.py`, dibangun di atas `require_login_api` yang sudah ada (401 kalau belum login, tambahan 403 kalau `request.session["role"]` tidak ada di `roles`). Pola pakai: `Depends(require_role("owner"))`, `Depends(require_role("owner", "admin"))`, dst.
+5. Terapkan `require_role` ke SEMUA router sesuai pemetaan di Keputusan Scope CR1 poin 5 di atas — enumerasi lengkap endpoint per role ada di sana, jangan improvisasi pemetaan baru.
+6. Endpoint baru `POST /api/auth/create-admin` (Owner-only, `require_role("owner")`): body email+password, membuat `User` baru `role="admin"`, `owner_id=<Owner yang login>`, `status="approved"` (Admin tidak perlu approval Superadmin — hanya Owner yang perlu, sesuai alur di Epic J), `is_active=True`. Endpoint ini dan UI-nya (form sederhana di halaman mana pun yang masuk akal, mis. tab baru "Kelola Tim" — putuskan lokasi UI saat implementasi, tidak kritikal).
+7. Update `login()` di `auth.py`: tolak login dengan pesan berbeda untuk 3 kasus — `status=="pending"` ("Akun Anda menunggu persetujuan Superadmin"), `status=="rejected"` ("Registrasi Anda ditolak"), `is_active==False` ("Akun Anda dinonaktifkan, hubungi Superadmin") — ketiganya tetap HTTP 401, beda pesan saja.
+
+**Acceptance criteria:**
+- Login sebagai Superadmin lalu akses `GET /api/inventory` (atau endpoint bisnis apa pun) → 403.
+- Login sebagai Admin lalu akses `POST /api/inventory/products` (create produk) → 403; akses `POST /api/inventory/{sku}/adjust` → 200 (kalau SKU ada).
+- Login sebagai Admin lalu akses `/api/pos/sales` → 200.
+- Owner yang login berhasil membuat akun Admin lewat `POST /api/auth/create-admin`; akun Admin itu tersimpan dengan `owner_id` = id Owner tsb.
+- User dengan `status="pending"` gagal login dengan pesan spesifik "menunggu persetujuan"; `is_active=False` gagal login dengan pesan spesifik "dinonaktifkan".
+
+---
+
+**Epic I — selesai.** `User` model (`app/models/db_models.py`) mendapat 5 kolom baru: `role` ("superadmin"|"owner"|"admin"), `owner_id` (self-referential FK, hanya diisi untuk role="admin"), `status` ("pending"|"approved"|"rejected"), `is_active` (Boolean), `business_name` (nullable — disiapkan untuk form registrasi Epic J sesuai permintaan task J sendiri). **Demo DB direset** (`data/umkm_omni.db` dihapus) karena `role`/`status`/`is_active` NOT NULL tanpa default aman untuk baris admin lama — konsisten dengan keputusan project "boleh direset."
+`app/services/auth_service.py`: `seed_admin_user()` sekarang seed SATU akun `role="superadmin"` (`superadmin@umkmapp.com`, bukan `admin@umkmapp.com` lagi). Tidak ada Owner yang di-seed — Owner pertama menunggu alur registrasi Epic J.
+`app/routers/auth.py`: `require_role(*roles)` dibangun di atas `require_login_api` + `_get_session_role` (dua sub-dependency terpisah, bukan baca session langsung) — desain ini sengaja supaya `tests/conftest.py` bisa override kedua fungsi itu SATU KALI dan otomatis berlaku ke semua closure `require_role(...)` di 7 router berbeda (tiap router bikin closure sendiri saat import, tidak bisa di-override individual tanpa trik ini). `conftest.py`'s `client` fixture default ke `role="owner"` supaya 85 test lama tetap lulus tanpa rewrite. Endpoint baru: `POST /api/auth/create-admin` dan `GET /api/auth/admins` (keduanya Owner-only) untuk halaman baru "Kelola Tim" (`/team`, `team.html`+`team.js`, pola list+create sama seperti `outlets.html`).
+Login (`POST /api/auth/login`) sekarang menolak `status=="pending"`/`"rejected"` dan `is_active==False` dengan pesan berbeda (tetap HTTP 401), dan menyimpan `role`+`tenant_id` di session. Redirect setelah login jadi role-aware (`login.html`): Owner→`/order_inbox`, Admin→`/pos`, Superadmin→tetap di halaman login dengan pesan info (belum ada dashboard, itu scope Epic J).
+Router gating persis mengikuti Keputusan Scope CR1 §5: `api.py`/`financial.py`/`reconciliation.py`/`platforms.py`/`outlets.py` jadi `require_role("owner")` di level router; `pos.py` jadi `require_role("owner","admin")`; `inventory.py` baseline `require_role("owner","admin")` dengan override tambahan `require_role("owner")` khusus di 3 route (`POST /products`, `PUT /products/{sku}`, `GET /products/{sku}/audit`). Halaman (`pages.py`) pakai helper `_guard()` baru (pola sama seperti `is_logged_in` lama: redirect ke `/login` kalau belum login, tapi sekarang `HTTPException(403)` kalau role salah).
+**Keputusan yang diambil tanpa tanya balik (didokumentasikan di sini, bukan ditebak diam-diam):** CR1 §5 tidak eksplisit menyebutkan halaman `/inventory` dan `/inventory/{sku}` untuk Admin — diputuskan **diizinkan** (owner+admin) karena modal "Adjust Stock" (satu-satunya kapabilitas Admin yang eksplisit diberi) secara fisik ada di kedua halaman itu; melarang halamannya akan membuat kapabilitas yang sudah diberikan tidak bisa dipakai dari UI. `outlets.py` (belum disebut CR1 karena akan dihapus total di Epic L) diperlakukan owner-only, konsisten dengan router "Pengaturan" lain.
+**Nav sidebar** di-wrap `{% if role == "owner" %}` per-link (11 template — tidak ada shared partial di project ini, jadi ini pengeditan manual per file) supaya Admin tidak melihat link ke halaman yang akan 403.
+`tests/test_auth.py` (9 test baru, lulus semua + 85 test lama tetap lulus tanpa perlu diubah, total 94) — Superadmin ditolak endpoint bisnis, Admin ditolak create-product tapi boleh adjust-stock & POS sales, Owner bikin Admin lewat `create-admin`, 3 varian pesan penolakan login. Diverifikasi end-to-end lewat server nyata: login superadmin→403 di `/api/inventory`, Owner dibuat manual di DB (karena Epic J belum ada)→bikin Admin lewat `/team`→Admin login→`/pos` dan `/inventory` 200, `/financial` 403, `POST /api/inventory/products` 403, dan nav sidebar `/pos` dikonfirmasi menyembunyikan "Kelola Tim"/"Kotak Masuk Pesanan"/"Laporan Keuangan" untuk Admin sementara Owner melihat semuanya.
+**Belum dikerjakan (scope Epic J, bukan lupa):** halaman registrasi Owner self-service, dashboard approval Superadmin, akun Owner sungguhan (demo DB sekarang cuma punya 1 Superadmin + 1 Owner + 1 Admin buatan manual untuk verifikasi).
+
+### EPIC J — Registrasi Owner (Self-Service) + Dashboard Approval Superadmin
+
+**Kenapa:** Superadmin butuh SESUATU untuk di-approve — dan Owner butuh cara mendaftar sendiri tanpa campur tangan developer. Bergantung penuh pada kolom `status`/`role`/`is_active` dari Epic I.
+
+**Task teknis:**
+1. Halaman publik `GET /register` (tanpa login) + `POST /api/auth/register`: form minimal email, password, **nama bisnis** (field baru yang perlu disimpan — tambahkan `business_name` ke `User` di Epic I kalau belum, karena ini bagian dari identitas Owner yang dipakai di Epic K/L sebagai pengganti nama toko yang dulu ada di `Outlet.nama_outlet`). Membuat `User` baru `role="owner"`, `status="pending"`, `is_active=True`, `owner_id=None`.
+2. Validasi registrasi: email harus unik (reuse constraint `User.email` yang sudah `unique=True`), password minimal policy sederhana (mis. minimal 8 karakter — dokumentasikan aturan yang dipilih di kode, jangan biarkan tanpa validasi sama sekali).
+3. `GET /superadmin/dashboard` (halaman, `require_role("superadmin")`): kartu jumlah Owner aktif (`status="approved" AND is_active=True`), grafik jumlah Owner baru per bulan (group by `DATE_TRUNC`/strftime `created_time` per Owner, sederhana pakai Chart.js seperti pola grafik lain kalau ada, atau tabel kalau tidak ada precedent chart di project — cek dulu apakah ada library chart yang sudah dipakai di templates lain sebelum menambah dependency baru), dan tabel daftar registrasi `status="pending"` dengan tombol Approve/Reject.
+4. Endpoint `POST /api/superadmin/users/{id}/approve`, `POST /api/superadmin/users/{id}/reject`, `POST /api/superadmin/users/{id}/deactivate`, `POST /api/superadmin/users/{id}/reactivate` — semua `require_role("superadmin")`, semua operasi pada `User.status`/`User.is_active`, TIDAK PERNAH menghapus row `User` atau data terkaitnya (sesuai permintaan eksplisit "tanpa menghapus data user owner yang tersimpan").
+5. **Hook ke Epic K:** saat sebuah Owner di-approve (`status` pending→approved), trigger seed Chart of Accounts KHUSUS untuk `owner_id` itu (lihat Epic K task teknis #4) — Owner yang baru approved harus langsung punya 38 akun siap pakai, bukan kosong.
+
+**Acceptance criteria:**
+- Registrasi lewat `/register` menghasilkan `User` `status="pending"` yang GAGAL login sampai di-approve.
+- Dashboard Superadmin menampilkan angka jumlah Owner aktif yang benar dan grafik yang bertambah ketika ada registrasi baru di bulan berjalan.
+- Approve mengubah `status` jadi `approved` DAN memicu seed CoA untuk Owner itu (Owner bisa langsung login dan lihat 38 akun di `/api/financial/accounts` miliknya sendiri).
+- Reject membuat akun permanen tidak bisa login, tapi row `User` tetap ada di database (cek langsung via query, bukan cuma "tidak error").
+- Deactivate pada Owner yang sudah approved membuatnya gagal login tanpa kehilangan data historisnya (Product/Order/JournalEntry Owner itu tetap utuh di database).
+
+---
+
+### EPIC K — Isolasi Data Multi-Tenant
+
+**Kenapa:** Ini jantung dari keputusan "multi-tenant, data terpisah per Owner". Tanpa epic ini, role Owner/Admin cuma teater — semua tenant tetap melihat data yang sama. **Ini epic paling berisiko dan paling luas cakupannya di seluruh project** — baca seluruhnya sebelum mulai, jangan cicil per file tanpa peta lengkap di kepala.
+
+**Task teknis — perubahan skema:**
+1. Tambah kolom `owner_id` (Integer, `ForeignKey("user.id")`, nullable=False) ke tabel: `Account`, `OmniOrder`, `JournalEntry`, `Expense`, `Settlement`, `Product`, `Platform`.
+2. **`Account.kode_akun` BERHENTI jadi primary key global.** Ganti jadi: `id` (Integer, autoincrement, primary_key=True) sebagai PK baru, `kode_akun` jadi kolom `String` biasa (masih `nullable=False`), unique constraint gabungan `(owner_id, kode_akun)`. Alasan: tiap Owner punya salinan CoA sendiri dengan kode yang SAMA (mis. dua Owner sama-sama punya akun "1111"), jadi `kode_akun` sendirian tidak lagi unik di seluruh tabel.
+3. **Konsekuensi wajib dari poin 2:** `TransactionMappingRule.kode_debet`/`kode_kredit` dan `JournalEntry.kode_debet`/`kode_kredit` saat ini `ForeignKey("account.kode_akun")` — FK ini TIDAK BISA dipertahankan apa adanya karena `kode_akun` bukan lagi unique. Lepas `ForeignKey` itu, jadikan `String` biasa (kode akun sebagai "label", bukan FK ter-enforce DB). Resolusi ke row `Account` yang benar dilakukan di kode aplikasi dengan query `Account.query.filter_by(owner_id=X, kode_akun=code)`, bukan `db.get(Account, code)` lagi.
+4. `TransactionMappingRule` TETAP GLOBAL, TIDAK diberi `owner_id` — ini tabel konfigurasi (32+2 baris aturan) yang sama untuk semua tenant, cuma dipakai sebagai referensi kode akun abstrak saat posting jurnal.
+5. Sub-tabel anak (`OmniOrderItem`, `OmniOrderFee`, `ProductPlatformMapping`, `ProductImage`, `ProductAuditLog`, `StockMovement`) TIDAK perlu `owner_id` langsung — mereka selalu dijangkau lewat parent yang sudah ter-scope (`order_id`/`sku`). **Syarat:** verifikasi dulu tidak ada query langsung ke tabel-tabel ini yang tidak melalui parent yang sudah difilter `owner_id` — kalau ketemu, entah tambahkan `owner_id` ke tabel itu juga atau perbaiki query-nya untuk join lewat parent.
+
+**Task teknis — perubahan kode:**
+6. Buat helper terpusat (mis. `app/services/tenant_context.py`) yang mengambil `tenant_id` dari `request.session` (sudah diisi di Epic I langkah 3) dan dipakai sebagai `Depends()` di setiap router — jangan duplikasi logic "ambil tenant_id dari session" di tiap file router.
+7. **Setiap fungsi service yang saat ini melakukan `db.query(Model)...` tanpa filter kepemilikan HARUS ditambah filter `owner_id == tenant_id`.** Ini menyentuh praktis semua fungsi publik di: `order_service.py`, `inventory_service.py`, `financial_service.py`, `journal_engine_service.py`, `balance_sheet_service.py`, `reconciliation_service.py`, `platform_service.py`, `chart_of_accounts_service.py`. Setiap fungsi ini juga perlu terima parameter `owner_id` (bukan diam-diam baca dari suatu global state) supaya tetap mudah ditest dengan tenant berbeda-beda dalam satu test file, konsisten dengan pola `db: Session` sebagai parameter pertama yang sudah jadi konvensi project ini.
+8. `chart_of_accounts_service.seed_accounts(db, owner_id)`: ubah signature untuk terima `owner_id`, jalankan PER OWNER (dipanggil dari hook approval Epic J), bukan sekali saat startup app. `journal_engine_service.seed_mapping_rules`/`seed_pos_payment_extension` TETAP jalan sekali saja saat startup (global, lihat poin 4).
+9. `main.py` startup: hapus pemanggilan `seed_accounts` global kalau ada; pastikan `seed_mapping_rules`/`seed_pos_payment_extension` tetap jalan sekali.
+10. Reset database demo sebelum epic ini dipakai — konsisten dengan prinsip "start from zero" yang sudah dipakai sejak Epic B, JANGAN tulis script migrasi/backfill `owner_id` untuk data lama.
+
+**Acceptance criteria:**
+- Dua Owner berbeda (`OwnerA`, `OwnerB`), masing-masing bikin Produk dan Order sendiri: `OwnerA` login lalu `GET /api/inventory` TIDAK PERNAH menampilkan SKU milik `OwnerB`, dan sebaliknya.
+- `GET /api/financial/balance-sheet` untuk `OwnerA` hanya menjumlahkan `JournalEntry` milik `OwnerA` — total Aset/Kewajiban/Ekuitas `OwnerA` tidak berubah kalau `OwnerB` posting transaksi apa pun.
+- Kode akun yang sama (mis. "1121") boleh punya saldo berbeda di `OwnerA` vs `OwnerB` secara independen.
+- Admin yang dibuat oleh `OwnerA` (`owner_id` menunjuk ke `OwnerA`) hanya bisa adjust stok/POS di data `OwnerA`, tidak pernah bisa menyentuh SKU milik `OwnerB` sekalipun tahu SKU-nya (coba akses langsung by ID, harus 403/404, bukan cuma disembunyikan dari list).
+- Seluruh test suite lama (yang sebelumnya tidak punya konsep tenant) diupdate untuk selalu menyertakan `owner_id`/tenant setup di fixture, dan tetap lulus semua.
+
+---
+
+### EPIC L — Hapus Skema Multi-Outlet
+
+**Kenapa:** Sesuai Keputusan Scope CR1 poin 2. Dikerjakan SETELAH Epic K supaya perubahan skema `Account`/`JournalEntry` tidak dua kali beririsan dalam sesi berbeda. Menyentuh 25+ file yang sudah teridentifikasi lewat pencarian `outlet` (case-insensitive) di seluruh `app/` sebelum task ini ditulis — daftar di bawah adalah hasil pencarian itu, bukan perkiraan.
+
+**Task teknis — hapus:**
+1. Model `Outlet` (`app/models/db_models.py`) — hapus class-nya seluruhnya.
+2. Kolom `outlet_id` di `OmniOrder`, `JournalEntry`, `Expense` — hapus.
+3. Kolom `is_outlet_scoped` di `Account` — hapus dari model DAN dari `docs/chart_of_accounts.csv` (baris 1111 berhenti punya kolom ini; kolom `is_outlet_scoped` sendiri dihapus dari header CSV — file ini sumber kebenaran, harus konsisten dengan skema baru).
+4. File yang dihapus total: `app/services/outlet_service.py`, `app/routers/outlets.py`, `app/templates/outlets.html`, `app/static/js/outlets.js`, `tests/test_outlets.py`.
+5. Registrasi router/nav: hapus `outlets` dari `app/main.py` (router include) dan hapus link nav "Kelola Outlet"/"Kas per Outlet" dari SEMUA template yang punya nav (cek satu-satu: `order_inbox.html`, `inventory.html`, `product_detail.html`, `product_form.html`, `financial.html`, `balance_sheet.html`, `reconciliation.html`, `platforms.html`, `pos.html`, dan `pages.py` route `/outlets`).
+
+**Task teknis — ubah:**
+6. `pos_service.create_pos_sale`: hapus parameter `outlet_id` dan validasi "outlet harus aktif" seluruhnya. Nota langsung dibuat tanpa pemilihan toko.
+7. `journal_engine_service.post_pos_sale_journal`: hapus logic resolusi `outlet_id` berbasis `Account.is_outlet_scoped` (poin ini otomatis hilang begitu kolom `is_outlet_scoped` dihapus di poin 3 — pastikan tidak ada sisa referensi).
+8. `balance_sheet_service.py`: hapus `_outlet_breakdown()`, `get_kas_per_outlet()`, dan key `breakdown_outlet` di hasil `get_balance_sheet()`. Akun 1111 Kas di Tangan jadi baris biasa seperti 1112/1113, tanpa drill-down.
+9. `app/templates/pos.html` + `app/static/js/pos.js`: hapus step pemilihan outlet dari alur Kasir POS — form langsung mulai dari pemilihan barang. Layout preview nota: ganti baris nama+alamat outlet dengan `business_name` milik Owner (ditambahkan di Epic J langkah 1) sebagai nama toko di struk.
+10. `app/templates/financial.html` + `app/static/js/financial.js`: hapus dropdown outlet yang sebelumnya wajib untuk rule Beban outlet-scoped (rule #31, dan #25 kalau Task Backlog itu sudah dikerjakan — cek `OUTLET_RULE_NO` di `financial.js` dan konstanta sejenis, hapus seluruhnya, bukan cuma disembunyikan).
+11. Update SEMUA test yang punya assertion terkait `outlet_id`/`Outlet`: `tests/test_journal_engine.py`, `tests/test_pos.py`, `tests/test_balance_sheet.py`, `tests/test_retur.py`, dan test lain hasil Task Backlog 1 (rule #25) kalau menyentuh outlet — hapus assertion outlet-nya, JANGAN hapus seluruh test case kalau bagian lainnya masih relevan.
+
+**Acceptance criteria:**
+- Tidak ada tabel `outlet` di skema database, tidak ada kolom `outlet_id`/`is_outlet_scoped` di mana pun.
+- Alur Kasir POS end-to-end (buat nota → cetak struk) tidak pernah menanyakan/menampilkan outlet.
+- Neraca menampilkan satu baris 1111 Kas di Tangan tanpa breakdown apa pun.
+- Full test suite lulus tanpa satu pun referensi ke `Outlet`/`outlet_id` yang tersisa (`grep -ri outlet app/ tests/` hasilnya kosong, kecuali kalau ada penggunaan kata "outlet" di luar konteks toko fisik — verifikasi manual tiap match).
+
+---
+
+### EPIC M — Forgot Password via Email (SMTP Mailtrap)
+
+**Kenapa:** Permintaan eksplisit user. Tidak bergantung pada K/L — bisa dikerjakan kapan saja setelah Epic I selesai (butuh `User` dengan role sudah ada, tapi tidak butuh isolasi tenant maupun penghapusan outlet).
+
+**Task teknis:**
+1. Model baru `PasswordResetToken` (`app/models/db_models.py`, ikuti pola tabel audit yang sudah ada seperti `ProductAuditLog`): `token` (String, primary_key atau unique+indexed — token acak panjang, mis. `secrets.token_urlsafe(32)`), `user_id` (`ForeignKey("user.id")`), `expires_at` (DateTime), `used_at` (DateTime, nullable — diisi saat dipakai, supaya token single-use tanpa perlu hapus row, konsisten dengan prinsip "jangan hapus data" yang sudah dipakai di Epic J untuk User).
+2. Service baru `app/services/email_service.py`: fungsi `send_email(to, subject, body)` pakai `smtplib` standar (tidak perlu dependency baru) + `email.mime.text.MIMEText`, baca konfigurasi dari environment variables (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS`) — tambahkan variabel-variabel ini ke `.env.example` dengan nilai contoh Mailtrap (host `sandbox.smtp.mailtrap.io`, port `2525`) dan komentar yang jelas bahwa ini sandbox, bukan pengiriman email sungguhan.
+3. `POST /api/auth/forgot-password` (body: email, tanpa login): cari `User` by email. **Selalu return response sukses generik yang sama** ("Kalau email terdaftar, link reset sudah dikirim") baik email ketemu atau tidak — mencegah user enumeration. Kalau ketemu DAN `status=="approved"` DAN `is_active==True`: buat `PasswordResetToken` baru (`expires_at` = sekarang + 30 menit), kirim email berisi link `/reset-password?token=...` lewat `email_service.send_email`.
+4. Halaman `GET /reset-password?token=...` (tanpa login) + `POST /api/auth/reset-password` (body: token, password_baru): validasi token ada, belum dipakai (`used_at is None`), belum expired. Kalau valid: hash password baru pakai `hash_new_password` yang sudah ada di `auth_service.py`, update `User.password_hash`/`password_salt`, set `PasswordResetToken.used_at`. Token tidak valid/expired/sudah dipakai → error yang jelas, JANGAN update password.
+5. Tambah link "Lupa password?" di `app/templates/login.html` menuju halaman forgot-password baru.
+
+**Acceptance criteria:**
+- Request forgot-password untuk email terdaftar & aktif mengirim TEPAT SATU email lewat SMTP yang dikonfigurasi, berisi link dengan token valid.
+- Request forgot-password untuk email TIDAK terdaftar mengembalikan response yang PERSIS SAMA (status code + body) dengan request untuk email yang terdaftar — verifikasi ini secara eksplisit di test, bukan cuma "tidak error".
+- Reset password dengan token valid & belum expired berhasil, lalu login dengan password lama GAGAL dan login dengan password baru BERHASIL.
+- Reset password dengan token yang sama dipakai dua kali → percobaan kedua ditolak.
+- Reset password dengan token kedaluwarsa (>30 menit) ditolak.
+- Dicatat jelas di README/env.example bahwa Mailtrap sandbox tidak mengirim ke inbox asli — supaya tidak dikira bug saat user asli tidak menerima email.

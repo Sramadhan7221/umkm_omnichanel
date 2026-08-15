@@ -9,14 +9,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.auth import require_login_api
+from app.routers.auth import require_role
 from app.services.reconciliation_service import (
     generate_settlements,
     get_reconciliation_summary,
     list_settlements,
 )
 
-router = APIRouter(prefix="/api/reconciliation", tags=["reconciliation"], dependencies=[Depends(require_login_api)])
+router = APIRouter(prefix="/api/reconciliation", tags=["reconciliation"], dependencies=[Depends(require_role("owner"))])
 
 
 def _resolve_period(start: str | None, end: str | None) -> tuple[datetime, datetime]:

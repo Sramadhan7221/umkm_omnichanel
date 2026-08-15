@@ -91,12 +91,14 @@
                 <ul class="side-nav">
                     <li class="side-nav-title">UMKM Omnichannel</li>
 
+                    {% if role == "owner" %}
                     <li class="side-nav-item">
                         <a href="/order_inbox" class="side-nav-link active">
                             <i class="ri-inbox-line"></i>
                             <span> Kotak Masuk Pesanan</span>
                         </a>
                     </li>
+                    {% endif %}
 
                     <li class="side-nav-item">
                         <a href="/pos" class="side-nav-link">
@@ -112,6 +114,7 @@
                         </a>
                     </li>
 
+                    {% if role == "owner" %}
                     <li class="side-nav-item">
                         <a href="/financial" class="side-nav-link">
                             <i class="ri-bar-chart-2-line"></i>
@@ -148,6 +151,14 @@
                             <span> Outlet</span>
                         </a>
                     </li>
+
+                    <li class="side-nav-item">
+                        <a href="/team" class="side-nav-link">
+                            <i class="ri-team-line"></i>
+                            <span> Kelola Tim</span>
+                        </a>
+                    </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>

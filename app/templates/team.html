@@ -3,9 +3,9 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>Outlet | UMKM Omnichannel</title>
+    <title>Kelola Tim | UMKM Omnichannel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Kelola outlet fisik toko Anda." name="description" />
+    <meta content="Kelola akun Admin bisnis Anda." name="description" />
 
     <link rel="shortcut icon" href="/static/images/favicon.ico">
 
@@ -36,7 +36,7 @@
                         <i class="mdi mdi-menu"></i>
                     </button>
 
-                    <h4 class="page-title d-none d-sm-block">Outlet</h4>
+                    <h4 class="page-title d-none d-sm-block">Kelola Tim</h4>
                 </div>
 
                 <ul class="topbar-menu d-flex align-items-center gap-3">
@@ -124,14 +124,14 @@
                     </li>
 
                     <li class="side-nav-item">
-                        <a href="/outlets" class="side-nav-link active">
+                        <a href="/outlets" class="side-nav-link">
                             <i class="ri-building-4-line"></i>
                             <span> Outlet</span>
                         </a>
                     </li>
 
                     <li class="side-nav-item">
-                        <a href="/team" class="side-nav-link">
+                        <a href="/team" class="side-nav-link active">
                             <i class="ri-team-line"></i>
                             <span> Kelola Tim</span>
                         </a>
@@ -148,9 +148,9 @@
                     <div class="row">
                         <div class="col-12">
                             <div class="page-title-box d-flex align-items-center justify-content-between">
-                                <h4 class="page-title">Outlet</h4>
-                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-add-outlet">
-                                    <i class="ri-add-line me-1"></i> Tambah Outlet
+                                <h4 class="page-title">Kelola Tim</h4>
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modal-add-admin">
+                                    <i class="ri-add-line me-1"></i> Tambah Admin
                                 </button>
                             </div>
                         </div>
@@ -160,32 +160,17 @@
                         <div class="col-12">
                             <div class="card">
                                 <div class="card-header">
-                                    <h4 class="card-title">Outlet Toko Fisik</h4>
+                                    <h4 class="card-title">Akun Admin</h4>
                                     <p class="text-muted mb-0">
-                                        Tiap outlet fisik punya kas di tangan yang terpisah. Nota Kasir POS
-                                        (segera hadir) wajib memilih salah satu outlet aktif di sini sebelum
-                                        input transaksi.
+                                        Admin bisa mengelola stok dan Kasir POS bisnis Anda, tapi tidak bisa
+                                        mengakses Laporan Keuangan, Neraca, Order Inbox, atau Pengaturan.
                                     </p>
                                 </div>
                                 <div class="card-body">
-                                    <div id="outlet-list" class="row g-3"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="card-title">Kas per Outlet</h4>
-                                    <p class="text-muted mb-0">Saldo akun 1111 Kas di Tangan, dipecah per outlet (dari Jurnal Transaksi).</p>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm" id="kas-per-outlet-table">
-                                        <thead><tr><th>Outlet</th><th class="text-end">Saldo Kas</th></tr></thead>
-                                        <tbody></tbody>
-                                        <tfoot><tr><th>TOTAL (Gabungan)</th><th class="text-end" id="kas-per-outlet-total">Rp 0</th></tr></tfoot>
+                                    <div id="admin-error" class="alert alert-danger d-none" role="alert"></div>
+                                    <table class="table table-sm">
+                                        <thead><tr><th>Email</th><th>Status</th><th>Dibuat</th></tr></thead>
+                                        <tbody id="admin-list"></tbody>
                                     </table>
                                 </div>
                             </div>
@@ -208,22 +193,23 @@
         </div>
     </div>
 
-    <div class="modal fade" id="modal-add-outlet" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="modal-add-admin" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
-                <form id="form-add-outlet">
+                <form id="form-add-admin">
                     <div class="modal-header">
-                        <h5 class="modal-title">Tambah Outlet</h5>
+                        <h5 class="modal-title">Tambah Admin</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
+                        <div id="form-admin-error" class="alert alert-danger d-none" role="alert"></div>
                         <div class="mb-3">
-                            <label class="form-label">Nama Outlet</label>
-                            <input type="text" class="form-control" id="input-nama-outlet" required>
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="input-admin-email" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Alamat</label>
-                            <textarea class="form-control" id="input-alamat-outlet" rows="2"></textarea>
+                            <label class="form-label">Kata Sandi</label>
+                            <input type="password" class="form-control" id="input-admin-password" minlength="8" required>
                         </div>
                     </div>
                     <div class="modal-footer">
@@ -241,7 +227,7 @@
 
     <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
     <script src="/static/js/auth-common.js"></script>
-    <script src="/static/js/outlets.js"></script>
+    <script src="/static/js/team.js"></script>
 </body>
 
 </html>

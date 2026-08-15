@@ -14,9 +14,9 @@ from app.database import Base
 
 
 # ---------------------------------------------------------------------------
-# Auth (Fase 5) — single default admin account for this demo. Password is
-# stored as a PBKDF2-HMAC hash (stdlib hashlib, no extra dependency) rather
-# than plaintext or a lighter hash.
+# Auth (Fase 5, extended Customer Request 1 Epic I) — Superadmin/Owner/Admin
+# roles. Password is stored as a PBKDF2-HMAC hash (stdlib hashlib, no extra
+# dependency) rather than plaintext or a lighter hash.
 # ---------------------------------------------------------------------------
 
 class User(Base):
@@ -27,6 +27,11 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     password_salt = Column(String, nullable=False)
     created_time = Column(DateTime, default=datetime.utcnow)
+    role = Column(String, nullable=False)  # "superadmin" | "owner" | "admin"
+    owner_id = Column(Integer, ForeignKey("user.id"), nullable=True)  # set only for role="admin"
+    status = Column(String, nullable=False, default="approved")  # "pending" | "approved" | "rejected"
+    is_active = Column(Boolean, nullable=False, default=True)
+    business_name = Column(String, nullable=True)  # Owner's business name (Epic J register form)
 
 
 # ---------------------------------------------------------------------------

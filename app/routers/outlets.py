@@ -8,10 +8,10 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.routers.auth import require_login_api
+from app.routers.auth import require_role
 from app.services.outlet_service import create_outlet, list_outlets, set_active
 
-router = APIRouter(prefix="/api/outlets", tags=["outlets"], dependencies=[Depends(require_login_api)])
+router = APIRouter(prefix="/api/outlets", tags=["outlets"], dependencies=[Depends(require_role("owner"))])
 
 
 class CreateRequest(BaseModel):
