@@ -1,0 +1,20 @@
+/**
+ * Shared sizing for every page that embeds a DataTables table (Order Inbox,
+ * Inventory, Rekonsiliasi, Jurnal Transaksi, Superadmin Dashboard). Paired
+ * with each page's `scrollX`/`scrollY` DataTable option (see the matching
+ * *.js file) so every datatable card renders at the same height regardless
+ * of row count, with its own horizontal/vertical scrollbar instead of
+ * squeezing columns or growing the card unpredictably.
+ */
+
+.datatable-card-body {
+    overflow-x: auto;
+}
+
+.datatable-card-body .dataTables_wrapper {
+    overflow-x: auto;
+}
+
+.datatable-card-body .dataTables_scrollBody {
+    border-bottom: 1px solid #e3eaef;
+}

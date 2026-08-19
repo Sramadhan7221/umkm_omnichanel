@@ -27,7 +27,13 @@ def _guard(request: Request, *roles: str) -> RedirectResponse | None:
 
 @router.get("/")
 def root():
-    return RedirectResponse(url="/order_inbox")
+    """Halaman default saat membuka aplikasi adalah Login — GET /login sendiri
+    yang menangani redirect role-aware untuk sesi yang sudah login (Owner ->
+    /order_inbox, Admin -> /pos, Superadmin -> /superadmin/dashboard), jadi
+    tidak perlu duplikasi logic role di sini. Sebelumnya redirect ke
+    /order_inbox langsung menyebabkan Admin/Superadmin dapat 403 alih-alih
+    diarahkan ke halaman yang benar."""
+    return RedirectResponse(url="/login")
 
 
 @router.get("/order_inbox")

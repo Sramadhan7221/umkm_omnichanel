@@ -92,7 +92,9 @@
                             { title: "Stok" }, { title: "Harga Acuan" }, { title: "Aksi" },
                         ],
                         order: [[0, "asc"]],
-                        responsive: true,
+                        scrollX: true,
+                        scrollY: "360px",
+                        scrollCollapse: true,
                         language: {
                             search: "Cari:",
                             lengthMenu: "Tampilkan _MENU_ data",

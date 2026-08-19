@@ -74,7 +74,9 @@
                             { title: "Keterangan" }, { title: "Status" },
                         ],
                         order: [[1, "desc"]],
-                        responsive: true,
+                        scrollX: true,
+                        scrollY: "360px",
+                        scrollCollapse: true,
                         language: {
                             search: "Cari:",
                             lengthMenu: "Tampilkan _MENU_ data",

@@ -13,6 +13,7 @@
 
     <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
     <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/css/datatable.css" rel="stylesheet" type="text/css" />
 
     <!-- Datatables css -->
     <link href="/static/vendor/datatables.net-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet" type="text/css" />
@@ -94,7 +95,7 @@
                                 <div class="card-header">
                                     <h4 class="card-title">List Approval Registrasi</h4>
                                 </div>
-                                <div class="card-body">
+                                <div class="card-body datatable-card-body">
                                     <div id="pending-error" class="alert alert-danger d-none" role="alert"></div>
                                     <table id="pending-owners-datatable" class="table table-striped dt-responsive nowrap w-100">
                                         <thead><tr><th>Bisnis</th><th>Email</th><th>Daftar</th><th class="text-end">Aksi</th></tr></thead>
@@ -107,7 +108,7 @@
                                 <div class="card-header">
                                     <h4 class="card-title">List Akun UMKM</h4>
                                 </div>
-                                <div class="card-body">
+                                <div class="card-body datatable-card-body">
                                     <div id="approved-error" class="alert alert-danger d-none" role="alert"></div>
                                     <table id="approved-owners-datatable" class="table table-striped dt-responsive nowrap w-100">
                                         <thead><tr><th>Bisnis</th><th>Email</th><th>Status</th><th class="text-end">Aksi</th></tr></thead>

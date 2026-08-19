@@ -134,7 +134,9 @@
                     { title: "Bisnis" }, { title: "Email" }, { title: "Daftar" }, { title: "Aksi" },
                 ],
                 order: [[2, "asc"]],
-                responsive: true,
+                scrollX: true,
+                scrollY: "360px",
+                scrollCollapse: true,
                 language: DATATABLE_LANGUAGE,
             });
         }
@@ -168,7 +170,9 @@
                     { title: "Bisnis" }, { title: "Email" }, { title: "Status" }, { title: "Aksi" },
                 ],
                 order: [[0, "asc"]],
-                responsive: true,
+                scrollX: true,
+                scrollY: "360px",
+                scrollCollapse: true,
                 language: DATATABLE_LANGUAGE,
             });
         }
