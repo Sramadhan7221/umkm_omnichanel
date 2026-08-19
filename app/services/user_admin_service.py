@@ -66,6 +66,15 @@ def list_pending_owners(db: Session) -> list[User]:
     )
 
 
+def list_approved_owners(db: Session) -> list[User]:
+    return (
+        db.query(User)
+        .filter(User.role == "owner", User.status == "approved")
+        .order_by(User.business_name)
+        .all()
+    )
+
+
 def _get_owner(db: Session, user_id: int) -> User:
     user = db.query(User).filter(User.id == user_id, User.role == "owner").first()
     if user is None:

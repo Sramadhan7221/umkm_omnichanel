@@ -13,6 +13,7 @@ from app.services.user_admin_service import (
     approve_owner,
     deactivate_owner,
     get_owner_stats,
+    list_approved_owners,
     list_pending_owners,
     reactivate_owner,
     reject_owner,
@@ -29,12 +30,19 @@ def _serialize(user) -> dict:
         "email": user.email,
         "business_name": user.business_name,
         "created_time": user.created_time.isoformat(sep=" ") if user.created_time else None,
+        "status": user.status,
+        "is_active": user.is_active,
     }
 
 
 @router.get("/owners/pending")
 def owners_pending(db: Session = Depends(get_db)):
     return [_serialize(u) for u in list_pending_owners(db)]
+
+
+@router.get("/owners/approved")
+def owners_approved(db: Session = Depends(get_db)):
+    return [_serialize(u) for u in list_approved_owners(db)]
 
 
 @router.get("/stats")

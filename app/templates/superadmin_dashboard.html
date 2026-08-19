@@ -13,6 +13,10 @@
 
     <link href="/static/css/app.min.css" rel="stylesheet" type="text/css" id="app-style" />
     <link href="/static/css/icons.min.css" rel="stylesheet" type="text/css" />
+
+    <!-- Datatables css -->
+    <link href="/static/vendor/datatables.net-bs5/css/dataTables.bootstrap5.min.css" rel="stylesheet" type="text/css" />
+    <link href="/static/vendor/datatables.net-responsive-bs5/css/responsive.bootstrap5.min.css" rel="stylesheet" type="text/css" />
 </head>
 
 <body>
@@ -70,43 +74,43 @@
         <div class="content-page">
             <div class="content">
                 <div class="container-fluid">
-
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-12">
                             <div class="card">
+                                <div class="card-header d-flex align-items-center justify-content-between">
+                                    <h4 class="card-title">Pertumbuhan Pendaftaran akun UMKM</h4>
+                                    <select id="monthly-owners-year" class="form-select form-select-sm d-inline-block w-auto"></select>
+                                </div>
                                 <div class="card-body">
-                                    <p class="text-muted mb-1">Owner Aktif</p>
-                                    <h3 class="mb-0" id="stat-active-owners">-</h3>
+                                    <div id="monthly-owners-chart"></div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="row">
-                        <div class="col-md-5">
+                        <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header">
-                                    <h4 class="card-title">Owner Baru per Bulan</h4>
+                                    <h4 class="card-title">List Approval Registrasi</h4>
                                 </div>
                                 <div class="card-body">
-                                    <table class="table table-sm">
-                                        <thead><tr><th>Bulan</th><th class="text-end">Registrasi Baru</th></tr></thead>
-                                        <tbody id="monthly-owners-table"></tbody>
+                                    <div id="pending-error" class="alert alert-danger d-none" role="alert"></div>
+                                    <table id="pending-owners-datatable" class="table table-striped dt-responsive nowrap w-100">
+                                        <thead><tr><th>Bisnis</th><th>Email</th><th>Daftar</th><th class="text-end">Aksi</th></tr></thead>
                                     </table>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="col-md-7">
+                        <div class="col-md-6">
                             <div class="card">
                                 <div class="card-header">
-                                    <h4 class="card-title">Menunggu Persetujuan</h4>
+                                    <h4 class="card-title">List Akun UMKM</h4>
                                 </div>
                                 <div class="card-body">
-                                    <div id="pending-error" class="alert alert-danger d-none" role="alert"></div>
-                                    <table class="table table-sm">
-                                        <thead><tr><th>Bisnis</th><th>Email</th><th>Daftar</th><th class="text-end">Aksi</th></tr></thead>
-                                        <tbody id="pending-owners-table"></tbody>
+                                    <div id="approved-error" class="alert alert-danger d-none" role="alert"></div>
+                                    <table id="approved-owners-datatable" class="table table-striped dt-responsive nowrap w-100">
+                                        <thead><tr><th>Bisnis</th><th>Email</th><th>Status</th><th class="text-end">Aksi</th></tr></thead>
                                     </table>
                                 </div>
                             </div>
@@ -131,7 +135,14 @@
 
     <script src="/static/js/vendor.min.js"></script>
     <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
+    <script src="/static/vendor/apexcharts/apexcharts.min.js"></script>
     <script src="/static/js/app.min.js"></script>
+
+    <!-- Datatables js -->
+    <script src="/static/vendor/datatables.net/js/jquery.dataTables.min.js"></script>
+    <script src="/static/vendor/datatables.net-bs5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="/static/vendor/datatables.net-responsive/js/dataTables.responsive.min.js"></script>
+    <script src="/static/vendor/datatables.net-responsive-bs5/js/responsive.bootstrap5.min.js"></script>
 
     <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
     <script src="/static/js/auth-common.js"></script>
