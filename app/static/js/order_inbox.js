@@ -108,7 +108,8 @@
                         },
                     });
                 }
-            });
+            })
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memuat kotak masuk pesanan."); });
     }
 
     function returSectionHtml(o) {
@@ -164,25 +165,35 @@
     function processRetur(platformOrderId) {
         var restoreStock = document.getElementById("retur-restore-stock").checked;
         var btn = document.getElementById("btn-process-retur");
-        btn.disabled = true;
 
-        fetch(API_BASE + "order/" + encodeURIComponent(platformOrderId) + "/process-retur", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ restore_stock: restoreStock }),
-        })
-            .then(function (res) {
-                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal memproses retur"); });
-                return res.json();
+        AppNotify.confirmAction({
+            title: "Proses Retur",
+            message: "Proses retur untuk pesanan " + platformOrderId + "? Tindakan ini tidak dapat dibatalkan.",
+            confirmText: "Ya, Proses Retur",
+            variant: "danger",
+        }).then(function (confirmed) {
+            if (!confirmed) return;
+
+            btn.disabled = true;
+            fetch(API_BASE + "order/" + encodeURIComponent(platformOrderId) + "/process-retur", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ restore_stock: restoreStock }),
             })
-            .then(function () {
-                bootstrap.Modal.getInstance(document.getElementById("order-detail-modal")).hide();
-                loadOrderInbox();
-            })
-            .catch(function (err) {
-                alert(err.message);
-                btn.disabled = false;
-            });
+                .then(function (res) {
+                    if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal memproses retur"); });
+                    return res.json();
+                })
+                .then(function () {
+                    bootstrap.Modal.getInstance(document.getElementById("order-detail-modal")).hide();
+                    AppNotify.showSuccessToast("Retur berhasil diproses.");
+                    loadOrderInbox();
+                })
+                .catch(function (err) {
+                    AppNotify.showErrorToast(err, "Gagal memproses retur.");
+                    btn.disabled = false;
+                });
+        });
     }
 
     function renderSyncResult(result) {
@@ -210,11 +221,16 @@
         btn.innerHTML = '<i class="ri-loader-4-line"></i> Menyinkronkan...';
 
         fetch(API_BASE + "sync-mock-orders", { method: "POST" })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal menyinkronkan pesanan"); });
+                return res.json();
+            })
             .then(function (data) {
                 renderSyncResult(data.result);
+                AppNotify.showSuccessToast("Sinkronisasi pesanan selesai.");
                 return loadOrderInbox();
             })
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal menyinkronkan pesanan."); })
             .finally(function () {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="ri-refresh-line align-middle"></i> Sinkronkan Pesanan';

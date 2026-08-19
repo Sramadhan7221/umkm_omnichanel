@@ -8,22 +8,6 @@
 (function () {
     "use strict";
 
-    function showListError(message) {
-        var el = document.getElementById("admin-error");
-        el.textContent = message;
-        el.classList.remove("d-none");
-    }
-
-    function showFormError(message) {
-        var el = document.getElementById("form-admin-error");
-        el.textContent = message;
-        el.classList.remove("d-none");
-    }
-
-    function hideFormError() {
-        document.getElementById("form-admin-error").classList.add("d-none");
-    }
-
     function renderAdmins(admins) {
         var body = document.getElementById("admin-list");
         body.innerHTML = admins.length
@@ -44,7 +28,7 @@
         return fetch("/api/auth/admins")
             .then(function (res) { return res.json(); })
             .then(renderAdmins)
-            .catch(function () { showListError("Gagal memuat daftar Admin."); });
+            .catch(function () { AppNotify.showErrorToast(null, "Gagal memuat daftar Admin."); });
     }
 
     function createAdmin(email, password) {
@@ -69,10 +53,12 @@
         var form = document.getElementById("form-add-admin");
         form.addEventListener("submit", function (e) {
             e.preventDefault();
-            hideFormError();
             var email = document.getElementById("input-admin-email").value.trim();
             var password = document.getElementById("input-admin-password").value;
             if (!email || !password) return;
+
+            var submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
 
             createAdmin(email, password)
                 .then(function () {
@@ -80,9 +66,11 @@
                     var modalEl = document.getElementById("modal-add-admin");
                     var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                     modal.hide();
+                    AppNotify.showSuccessToast("Akun Admin berhasil ditambahkan.");
                     loadAdmins();
                 })
-                .catch(function (err) { showFormError(err.message); });
+                .catch(function (err) { AppNotify.showErrorToast(err, "Gagal membuat akun Admin."); })
+                .finally(function () { submitBtn.disabled = false; });
         });
     });
 })();

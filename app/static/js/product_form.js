@@ -17,10 +17,7 @@
     var removedImageIds = [];
 
     function showError(message) {
-        var el = document.getElementById("form-error");
-        el.textContent = message;
-        el.classList.remove("d-none");
-        window.scrollTo(0, 0);
+        AppNotify.showErrorToast(message);
     }
 
     function formatRupiah(amount) {
@@ -223,6 +220,7 @@
                 return res.json();
             })
             .then(function (data) {
+                AppNotify.flashSuccessOnNextLoad(IS_EDIT ? "Produk berhasil diperbarui." : "Produk berhasil ditambahkan.");
                 window.location.href = "/inventory/" + encodeURIComponent(data.sku || EDIT_SKU);
             })
             .catch(function (err) {

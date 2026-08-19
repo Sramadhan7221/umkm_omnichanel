@@ -161,18 +161,30 @@
     function saveAdjust() {
         var qty = parseInt(document.getElementById("adjust-quantity").value, 10);
         var note = document.getElementById("adjust-note").value;
-        if (isNaN(qty) || qty < 0) return;
+        if (isNaN(qty) || qty < 0) {
+            AppNotify.showWarningToast("Isi stok baru dengan angka yang valid.");
+            return;
+        }
+
+        var btn = document.getElementById("btn-save-adjust");
+        btn.disabled = true;
 
         fetch(API_BASE + "/" + encodeURIComponent(SKU) + "/adjust", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ quantity: qty, note: note }),
         })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal menyesuaikan stok"); });
+                return res.json();
+            })
             .then(function () {
                 bootstrap.Modal.getInstance(document.getElementById("adjust-stock-modal")).hide();
+                AppNotify.showSuccessToast("Stok berhasil disesuaikan.");
                 return Promise.all([loadDetail(), loadMovements(), loadAuditLog()]);
-            });
+            })
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal menyesuaikan stok."); })
+            .finally(function () { btn.disabled = false; });
     }
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -182,7 +194,7 @@
             .then(loadDetail)
             .then(loadMovements)
             .then(loadAuditLog)
-            .catch(function (err) { console.error(err); });
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memuat data produk."); });
 
         document.getElementById("btn-quick-adjust").addEventListener("click", function () {
             new bootstrap.Modal(document.getElementById("adjust-stock-modal")).show();

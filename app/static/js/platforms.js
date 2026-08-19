@@ -62,6 +62,13 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ is_active: isActive }),
+        }).then(function (res) {
+            if (!res.ok) {
+                return res.json().then(function (data) {
+                    throw new Error(data.detail || "Gagal mengubah status platform");
+                });
+            }
+            return res.json();
         });
     }
 
@@ -77,11 +84,19 @@
             var isActive = checkbox.checked;
             var statusLabel = checkbox.closest(".form-check").querySelector(".status-label");
 
-            toggle(code, isActive).then(function () {
-                statusLabel.textContent = isActive ? "Aktif" : "Nonaktif";
-                statusLabel.classList.toggle("text-success", isActive);
-                statusLabel.classList.toggle("text-muted", !isActive);
-            });
+            checkbox.disabled = true;
+            toggle(code, isActive)
+                .then(function () {
+                    statusLabel.textContent = isActive ? "Aktif" : "Nonaktif";
+                    statusLabel.classList.toggle("text-success", isActive);
+                    statusLabel.classList.toggle("text-muted", !isActive);
+                    AppNotify.showSuccessToast(isActive ? "Platform diaktifkan." : "Platform dinonaktifkan.");
+                })
+                .catch(function (err) {
+                    checkbox.checked = !isActive; // revert the switch on failure
+                    AppNotify.showErrorToast(err, "Gagal mengubah status platform.");
+                })
+                .finally(function () { checkbox.disabled = false; });
         });
     });
 })();

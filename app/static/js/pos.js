@@ -75,13 +75,13 @@
         var product = products[sku];
 
         if (!product || isNaN(qty) || qty <= 0) {
-            alert("Pilih barang dan qty yang valid.");
+            AppNotify.showWarningToast("Pilih barang dan qty yang valid.");
             return;
         }
 
         var alreadyInCart = cart.filter(function (l) { return l.sku === sku; }).reduce(function (sum, l) { return sum + l.qty; }, 0);
         if (alreadyInCart + qty > product.stock_qty) {
-            alert("Stok '" + product.name + "' tidak cukup (tersedia " + product.stock_qty + ").");
+            AppNotify.showWarningToast("Stok '" + product.name + "' tidak cukup (tersedia " + product.stock_qty + ").");
             return;
         }
 
@@ -105,9 +105,12 @@
         var customerRef = document.getElementById("input-customer").value.trim();
 
         if (!cart.length) {
-            alert("Tambahkan minimal 1 barang ke nota.");
+            AppNotify.showWarningToast("Tambahkan minimal 1 barang ke nota.");
             return;
         }
+
+        var btn = document.getElementById("btn-save-nota");
+        btn.disabled = true;
 
         fetch("/api/pos/sales", {
             method: "POST",
@@ -122,11 +125,13 @@
                 return res.json();
             })
             .then(function (receipt) {
+                AppNotify.showSuccessToast("Nota berhasil disimpan.");
                 renderReceipt(receipt);
                 resetCart();
                 loadProducts(); // refresh stock numbers after deduction
             })
-            .catch(function (err) { alert(err.message); });
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal menyimpan nota."); })
+            .finally(function () { btn.disabled = false; });
     }
 
     function renderReceipt(receipt) {

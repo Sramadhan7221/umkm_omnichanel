@@ -88,16 +88,6 @@
         }
     }
 
-    function showError(elId, message) {
-        var el = document.getElementById(elId);
-        el.textContent = message;
-        el.classList.remove("d-none");
-    }
-
-    function hideError(elId) {
-        document.getElementById(elId).classList.add("d-none");
-    }
-
     function loadStats() {
         return fetch(API_BASE + "/stats")
             .then(function (res) { return res.json(); })
@@ -118,8 +108,8 @@
                 o.business_name,
                 o.email,
                 created,
-                "<button class='btn btn-sm btn-success me-1 btn-approve' data-id='" + o.id + "'>Setujui</button>" +
-                "<button class='btn btn-sm btn-outline-danger btn-reject' data-id='" + o.id + "'>Tolak</button>",
+                "<button class='btn btn-sm btn-success me-1 btn-approve' data-id='" + o.id + "' data-name='" + o.business_name + "'>Setujui</button>" +
+                "<button class='btn btn-sm btn-outline-danger btn-reject' data-id='" + o.id + "' data-name='" + o.business_name + "'>Tolak</button>",
             ];
         });
 
@@ -145,7 +135,8 @@
     function loadPending() {
         return fetch(API_BASE + "/owners/pending")
             .then(function (res) { return res.json(); })
-            .then(renderPending);
+            .then(renderPending)
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memuat daftar pendaftaran."); });
     }
 
     function renderApproved(owners) {
@@ -154,8 +145,8 @@
                 ? "<span class='badge bg-success-subtle text-success'>Aktif</span>"
                 : "<span class='badge bg-secondary-subtle text-secondary'>Nonaktif</span>";
             var actionBtn = o.is_active
-                ? "<button class='btn btn-sm btn-outline-danger btn-deactivate' data-id='" + o.id + "'>Nonaktifkan</button>"
-                : "<button class='btn btn-sm btn-outline-success btn-reactivate' data-id='" + o.id + "'>Aktifkan</button>";
+                ? "<button class='btn btn-sm btn-outline-danger btn-deactivate' data-id='" + o.id + "' data-name='" + o.business_name + "'>Nonaktifkan</button>"
+                : "<button class='btn btn-sm btn-outline-success btn-reactivate' data-id='" + o.id + "' data-name='" + o.business_name + "'>Aktifkan</button>";
             return [o.business_name, o.email, statusBadge, actionBtn];
         });
 
@@ -181,42 +172,75 @@
     function loadApproved() {
         return fetch(API_BASE + "/owners/approved")
             .then(function (res) { return res.json(); })
-            .then(renderApproved);
+            .then(renderApproved)
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memuat daftar akun UMKM."); });
     }
 
-    function decide(id, action) {
-        hideError("pending-error");
-        return fetch(API_BASE + "/users/" + id + "/" + action, { method: "POST" })
-            .then(function (res) {
-                if (!res.ok) {
-                    return res.json().then(function (data) {
-                        throw new Error(data.detail || "Gagal memproses");
-                    });
-                }
-            })
-            .then(function () {
-                loadPending();
-                loadApproved();
-                loadStats();
-            })
-            .catch(function (err) { showError("pending-error", err.message); });
+    function decide(id, action, name) {
+        var successMessage = action === "approve"
+            ? "Pendaftaran " + (name || "owner") + " disetujui."
+            : "Pendaftaran " + (name || "owner") + " ditolak.";
+
+        function run() {
+            return fetch(API_BASE + "/users/" + id + "/" + action, { method: "POST" })
+                .then(function (res) {
+                    if (!res.ok) {
+                        return res.json().then(function (data) {
+                            throw new Error(data.detail || "Gagal memproses");
+                        });
+                    }
+                })
+                .then(function () {
+                    AppNotify.showSuccessToast(successMessage);
+                    loadPending();
+                    loadApproved();
+                    loadStats();
+                })
+                .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memproses permintaan."); });
+        }
+
+        if (action === "reject") {
+            return AppNotify.confirmAction({
+                title: "Tolak Pendaftaran",
+                message: "Tolak pendaftaran " + (name || "owner ini") + "? Tindakan ini tidak dapat dibatalkan.",
+                confirmText: "Ya, Tolak",
+                variant: "danger",
+            }).then(function (confirmed) { if (confirmed) return run(); });
+        }
+        return run();
     }
 
-    function toggleActive(id, action) {
-        hideError("approved-error");
-        return fetch(API_BASE + "/users/" + id + "/" + action, { method: "POST" })
-            .then(function (res) {
-                if (!res.ok) {
-                    return res.json().then(function (data) {
-                        throw new Error(data.detail || "Gagal memproses");
-                    });
-                }
-            })
-            .then(function () {
-                loadApproved();
-                loadStats();
-            })
-            .catch(function (err) { showError("approved-error", err.message); });
+    function toggleActive(id, action, name) {
+        var successMessage = action === "deactivate"
+            ? "Akun " + (name || "owner") + " dinonaktifkan."
+            : "Akun " + (name || "owner") + " diaktifkan kembali.";
+
+        function run() {
+            return fetch(API_BASE + "/users/" + id + "/" + action, { method: "POST" })
+                .then(function (res) {
+                    if (!res.ok) {
+                        return res.json().then(function (data) {
+                            throw new Error(data.detail || "Gagal memproses");
+                        });
+                    }
+                })
+                .then(function () {
+                    AppNotify.showSuccessToast(successMessage);
+                    loadApproved();
+                    loadStats();
+                })
+                .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memproses permintaan."); });
+        }
+
+        if (action === "deactivate") {
+            return AppNotify.confirmAction({
+                title: "Nonaktifkan Akun",
+                message: "Nonaktifkan akun " + (name || "owner ini") + "? Owner tidak akan bisa masuk sampai diaktifkan kembali.",
+                confirmText: "Ya, Nonaktifkan",
+                variant: "danger",
+            }).then(function (confirmed) { if (confirmed) return run(); });
+        }
+        return run();
     }
 
     document.addEventListener("DOMContentLoaded", function () {
@@ -228,15 +252,15 @@
         document.getElementById("pending-owners-datatable").addEventListener("click", function (e) {
             var approveBtn = e.target.closest(".btn-approve");
             var rejectBtn = e.target.closest(".btn-reject");
-            if (approveBtn) decide(approveBtn.getAttribute("data-id"), "approve");
-            if (rejectBtn) decide(rejectBtn.getAttribute("data-id"), "reject");
+            if (approveBtn) decide(approveBtn.getAttribute("data-id"), "approve", approveBtn.getAttribute("data-name"));
+            if (rejectBtn) decide(rejectBtn.getAttribute("data-id"), "reject", rejectBtn.getAttribute("data-name"));
         });
 
         document.getElementById("approved-owners-datatable").addEventListener("click", function (e) {
             var deactivateBtn = e.target.closest(".btn-deactivate");
             var reactivateBtn = e.target.closest(".btn-reactivate");
-            if (deactivateBtn) toggleActive(deactivateBtn.getAttribute("data-id"), "deactivate");
-            if (reactivateBtn) toggleActive(reactivateBtn.getAttribute("data-id"), "reactivate");
+            if (deactivateBtn) toggleActive(deactivateBtn.getAttribute("data-id"), "deactivate", deactivateBtn.getAttribute("data-name"));
+            if (reactivateBtn) toggleActive(reactivateBtn.getAttribute("data-id"), "reactivate", reactivateBtn.getAttribute("data-name"));
         });
 
         document.getElementById("monthly-owners-year").addEventListener("change", function (e) {

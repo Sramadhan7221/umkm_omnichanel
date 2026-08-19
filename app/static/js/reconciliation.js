@@ -119,8 +119,18 @@
         btn.innerHTML = '<i class="ri-loader-4-line"></i> Memproses...';
 
         fetch(API_BASE + "/generate", { method: "POST" })
-            .then(function (res) { return res.json(); })
-            .then(function () { return reloadAll(); })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal memproses settlement"); });
+                return res.json();
+            })
+            .then(function (data) {
+                var count = data && typeof data.created === "number" ? data.created : null;
+                AppNotify.showSuccessToast(count !== null
+                    ? "Berhasil memproses " + count + " settlement baru."
+                    : "Settlement baru berhasil diproses.");
+                return reloadAll();
+            })
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memproses settlement."); })
             .finally(function () {
                 btn.disabled = false;
                 btn.innerHTML = '<i class="ri-download-2-line align-middle"></i> Proses Settlement Baru';

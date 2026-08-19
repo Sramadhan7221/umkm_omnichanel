@@ -161,7 +161,6 @@
                                     </p>
                                 </div>
                                 <div class="card-body">
-                                    <div id="admin-error" class="alert alert-danger d-none" role="alert"></div>
                                     <table class="table table-sm">
                                         <thead><tr><th>Email</th><th>Status</th><th>Dibuat</th></tr></thead>
                                         <tbody id="admin-list"></tbody>
@@ -196,7 +195,6 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
-                        <div id="form-admin-error" class="alert alert-danger d-none" role="alert"></div>
                         <div class="mb-3">
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" id="input-admin-email" required>
@@ -218,6 +216,7 @@
     <script src="/static/js/vendor.min.js"></script>
     <script src="/static/vendor/lucide/umd/lucide.min.js"></script>
     <script src="/static/js/app.min.js"></script>
+    <script src="/static/js/notify.js"></script>
 
     <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
     <script src="/static/js/auth-common.js"></script>

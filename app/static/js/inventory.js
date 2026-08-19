@@ -105,7 +105,8 @@
                         },
                     });
                 }
-            });
+            })
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal memuat data katalog produk."); });
     }
 
     function openAdjustModal(sku, name, qty) {
@@ -120,18 +121,30 @@
     function saveAdjust() {
         var qty = parseInt(document.getElementById("adjust-quantity").value, 10);
         var note = document.getElementById("adjust-note").value;
-        if (isNaN(qty) || qty < 0) return;
+        if (isNaN(qty) || qty < 0) {
+            AppNotify.showWarningToast("Isi stok baru dengan angka yang valid.");
+            return;
+        }
+
+        var btn = document.getElementById("btn-save-adjust");
+        btn.disabled = true;
 
         fetch(API_BASE + "/" + encodeURIComponent(currentSku) + "/adjust", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ quantity: qty, note: note }),
         })
-            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal menyesuaikan stok"); });
+                return res.json();
+            })
             .then(function () {
                 bootstrap.Modal.getInstance(document.getElementById("adjust-stock-modal")).hide();
+                AppNotify.showSuccessToast("Stok berhasil disesuaikan.");
                 return loadInventory();
-            });
+            })
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal menyesuaikan stok."); })
+            .finally(function () { btn.disabled = false; });
     }
 
     function openHistoryModal(sku) {
@@ -157,6 +170,10 @@
                     "<table class='table table-sm'><thead><tr><th>Waktu</th><th>Perubahan</th>" +
                     "<th>Stok Akhir</th><th>Sumber</th><th>Catatan</th></tr></thead><tbody>" +
                     rows + "</tbody></table>";
+            })
+            .catch(function (err) {
+                body.innerHTML = '<p class="text-danger mb-0">Gagal memuat riwayat.</p>';
+                AppNotify.showErrorToast(err, "Gagal memuat riwayat stok.");
             });
     }
 

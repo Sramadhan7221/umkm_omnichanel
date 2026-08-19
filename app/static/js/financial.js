@@ -115,20 +115,36 @@
     }
 
     function closeMonthPph() {
-        fetch(API_BASE + "/pph/close-month", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ period: currentPeriod() }),
-        })
-            .then(function (res) {
-                if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal tutup buku"); });
-                return res.json();
+        AppNotify.confirmAction({
+            title: "Tutup Buku Bulan Ini",
+            message: "Setelah ditutup, PPh Final periode " + currentPeriod() + " tidak bisa diubah lagi. Lanjutkan?",
+            confirmText: "Ya, Tutup Buku",
+            variant: "danger",
+        }).then(function (confirmed) {
+            if (!confirmed) return;
+
+            var btn = document.getElementById("btn-close-month-pph");
+            btn.disabled = true;
+
+            fetch(API_BASE + "/pph/close-month", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ period: currentPeriod() }),
             })
-            .then(function () {
-                loadPphSummary();
-                loadJournal();
-            })
-            .catch(function (err) { alert(err.message); });
+                .then(function (res) {
+                    if (!res.ok) return res.json().then(function (body) { throw new Error(body.detail || "Gagal tutup buku"); });
+                    return res.json();
+                })
+                .then(function () {
+                    AppNotify.showSuccessToast("Buku bulan ini berhasil ditutup.");
+                    loadPphSummary();
+                    loadJournal();
+                })
+                .catch(function (err) {
+                    AppNotify.showErrorToast(err, "Gagal tutup buku.");
+                    btn.disabled = false;
+                });
+        });
     }
 
     function depositPph() {
@@ -136,9 +152,12 @@
         var date = document.getElementById("pph-deposit-date").value || todayISO();
 
         if (isNaN(amount) || amount <= 0) {
-            alert("Isi jumlah setoran dengan benar.");
+            AppNotify.showWarningToast("Isi jumlah setoran dengan benar.");
             return;
         }
+
+        var btn = document.getElementById("btn-deposit-pph");
+        btn.disabled = true;
 
         fetch(API_BASE + "/pph/deposit", {
             method: "POST",
@@ -151,10 +170,12 @@
             })
             .then(function () {
                 document.getElementById("pph-deposit-amount").value = "";
+                AppNotify.showSuccessToast("Setoran PPh berhasil dicatat.");
                 loadPphSummary();
                 loadJournal();
             })
-            .catch(function (err) { alert(err.message); });
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal mencatat setoran."); })
+            .finally(function () { btn.disabled = false; });
     }
 
     function loadExpenseRules() {
@@ -204,9 +225,12 @@
         var note = document.getElementById("expense-note").value;
 
         if (!category || isNaN(amount) || amount <= 0 || isNaN(ruleNo)) {
-            alert("Isi kategori, jenis beban, dan jumlah biaya dengan benar.");
+            AppNotify.showWarningToast("Isi kategori, jenis beban, dan jumlah biaya dengan benar.");
             return;
         }
+
+        var btn = document.getElementById("btn-add-expense");
+        btn.disabled = true;
 
         fetch(API_BASE + "/expenses", {
             method: "POST",
@@ -224,9 +248,11 @@
                 document.getElementById("expense-category").value = "";
                 document.getElementById("expense-amount").value = "";
                 document.getElementById("expense-note").value = "";
+                AppNotify.showSuccessToast("Biaya operasional berhasil dicatat.");
                 reloadAll();
             })
-            .catch(function (err) { alert(err.message); });
+            .catch(function (err) { AppNotify.showErrorToast(err, "Gagal mencatat biaya."); })
+            .finally(function () { btn.disabled = false; });
     }
 
     document.addEventListener("DOMContentLoaded", function () {
