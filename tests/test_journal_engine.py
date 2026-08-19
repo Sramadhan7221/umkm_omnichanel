@@ -8,14 +8,11 @@ rules, transcribed verbatim from the business owner's Excel prototype).
 import csv
 from datetime import datetime
 
-import pytest
-
 from app.models.db_models import (
     JournalEntry,
     OmniOrder,
     OmniOrderFee,
     OmniOrderItem,
-    Outlet,
     Product,
     Settlement,
     TransactionMappingRule,
@@ -162,39 +159,20 @@ def test_settlement_posts_bank_receipt_entry(db):
 
 def test_expense_rule_variants_post_correct_account_pairs(db):
     owner = _seed(db)
-    db.add(Outlet(kode_outlet="OUT-1", nama_outlet="Toko Utama"))
-    db.commit()
 
-    kemasan = add_expense(db, owner.id, "Bubble Wrap", 75_000, "", datetime(2026, 8, 1), rule_no=25, outlet_id="OUT-1")
+    kemasan = add_expense(db, owner.id, "Bubble Wrap", 75_000, "", datetime(2026, 8, 1), rule_no=25)
     saas = add_expense(db, owner.id, "Langganan POS", 150_000, "", datetime(2026, 8, 1), rule_no=26)
     gaji_bank = add_expense(db, owner.id, "Gaji", 3_000_000, "", datetime(2026, 8, 1), rule_no=30)
-    gaji_tunai = add_expense(db, owner.id, "Gaji Harian", 200_000, "", datetime(2026, 8, 1), rule_no=31, outlet_id="OUT-1")
+    gaji_tunai = add_expense(db, owner.id, "Gaji Harian", 200_000, "", datetime(2026, 8, 1), rule_no=31)
     operasional = add_expense(db, owner.id, "Listrik", 500_000, "", datetime(2026, 8, 1), rule_no=32)
 
     entries = {e.expense_id: e for e in db.query(JournalEntry).filter(JournalEntry.expense_id.isnot(None)).all()}
 
     assert entries[kemasan.id].kode_debet == "5120" and entries[kemasan.id].kode_kredit == "1111"
-    assert entries[kemasan.id].outlet_id == "OUT-1"
     assert entries[saas.id].kode_debet == "5214" and entries[saas.id].kode_kredit == "1113"
     assert entries[gaji_bank.id].kode_debet == "5310" and entries[gaji_bank.id].kode_kredit == "1113"
     assert entries[gaji_tunai.id].kode_debet == "5310" and entries[gaji_tunai.id].kode_kredit == "1111"
-    assert entries[gaji_tunai.id].outlet_id == "OUT-1"
     assert entries[operasional.id].kode_debet == "5320" and entries[operasional.id].kode_kredit == "1113"
-
-
-@pytest.mark.parametrize("rule_no", [25, 31])
-def test_add_expense_rejects_outlet_scoped_rule_without_outlet(db, rule_no):
-    owner = _seed(db)
-    with pytest.raises(ValueError):
-        add_expense(db, owner.id, "Biaya Tunai", 50_000, "", datetime(2026, 8, 1), rule_no=rule_no, outlet_id=None)
-
-    assert db.query(JournalEntry).filter(JournalEntry.rule_no == rule_no).count() == 0
-
-
-def test_add_expense_allows_non_outlet_scoped_rule_without_outlet(db):
-    owner = _seed(db)
-    expense = add_expense(db, owner.id, "Listrik", 500_000, "", datetime(2026, 8, 1), rule_no=32, outlet_id=None)
-    assert expense.id is not None
 
 
 def test_journal_endpoint_returns_posted_entries(client, db):
@@ -210,7 +188,7 @@ def test_journal_endpoint_returns_posted_entries(client, db):
     assert any(row["sumber_dokumen"] == "Pesanan SP-003" for row in body)
 
 
-def test_expense_rules_endpoint_returns_five_rules_with_outlet_flag(client, db):
+def test_expense_rules_endpoint_returns_five_rules(client, db):
     owner = _seed(db)
     as_tenant(owner.id)
     response = client.get("/api/financial/expense-rules")
@@ -218,17 +196,3 @@ def test_expense_rules_endpoint_returns_five_rules_with_outlet_flag(client, db):
 
     rules = {r["no"]: r for r in response.json()}
     assert set(rules) == {25, 26, 30, 31, 32}
-    assert rules[25]["outlet_required"] is True
-    assert rules[31]["outlet_required"] is True
-    assert rules[26]["outlet_required"] is False
-    assert rules[30]["outlet_required"] is False
-    assert rules[32]["outlet_required"] is False
-
-
-def test_create_expense_endpoint_rejects_missing_outlet_for_outlet_scoped_rule(client, db):
-    owner = _seed(db)
-    as_tenant(owner.id)
-    response = client.post("/api/financial/expenses", json={
-        "category": "Bubble Wrap", "amount": 50_000, "expense_date": "2026-08-01", "rule_no": 25,
-    })
-    assert response.status_code == 400

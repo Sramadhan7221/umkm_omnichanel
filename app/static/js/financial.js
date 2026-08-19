@@ -9,7 +9,6 @@
 
     var API_BASE = "/api/financial";
     var journalTable = null;
-    var expenseRulesByNo = {}; // no -> {..., outlet_required}, populated by loadExpenseRules() — no hardcoded rule no
 
     function formatRupiah(amount) {
         var n = Number(amount || 0);
@@ -160,37 +159,12 @@
         return fetch(API_BASE + "/expense-rules")
             .then(function (res) { return res.json(); })
             .then(function (rules) {
-                expenseRulesByNo = {};
-                rules.forEach(function (r) { expenseRulesByNo[r.no] = r; });
-
                 var select = document.getElementById("expense-rule");
                 select.innerHTML = rules.map(function (r) {
                     return "<option value='" + r.no + "'>" + r.event_trigger + " (" +
                         r.kode_debet + " / " + r.kode_kredit + ")</option>";
                 }).join("");
-                toggleOutletField();
             });
-    }
-
-    function loadOutletOptions() {
-        return fetch("/api/outlets")
-            .then(function (res) { return res.json(); })
-            .then(function (outlets) {
-                var select = document.getElementById("expense-outlet");
-                select.innerHTML = outlets.map(function (o) {
-                    return "<option value='" + o.kode_outlet + "'>" + o.nama_outlet + "</option>";
-                }).join("");
-            });
-    }
-
-    function ruleRequiresOutlet(ruleNo) {
-        var rule = expenseRulesByNo[ruleNo];
-        return !!(rule && rule.outlet_required);
-    }
-
-    function toggleOutletField() {
-        var ruleNo = parseInt(document.getElementById("expense-rule").value, 10);
-        document.getElementById("expense-outlet-wrapper").classList.toggle("d-none", !ruleRequiresOutlet(ruleNo));
     }
 
     function loadExpenses() {
@@ -226,15 +200,9 @@
         var amount = parseFloat(document.getElementById("expense-amount").value);
         var date = document.getElementById("expense-date").value || todayISO();
         var note = document.getElementById("expense-note").value;
-        var outletRequired = ruleRequiresOutlet(ruleNo);
-        var outletId = outletRequired ? document.getElementById("expense-outlet").value : null;
 
         if (!category || isNaN(amount) || amount <= 0 || isNaN(ruleNo)) {
             alert("Isi kategori, jenis beban, dan jumlah biaya dengan benar.");
-            return;
-        }
-        if (outletRequired && !outletId) {
-            alert("Pilih outlet untuk biaya yang dibayar dari kas tunai.");
             return;
         }
 
@@ -243,7 +211,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 category: category, amount: amount, note: note, expense_date: date,
-                rule_no: ruleNo, outlet_id: outletId,
+                rule_no: ruleNo,
             }),
         })
             .then(function (res) {
@@ -266,13 +234,11 @@
         document.getElementById("pph-deposit-date").value = todayISO();
 
         loadExpenseRules();
-        loadOutletOptions();
         loadPphSummary();
         reloadAll();
 
         document.getElementById("period-select").addEventListener("change", reloadAll);
         document.getElementById("btn-add-expense").addEventListener("click", addExpense);
-        document.getElementById("expense-rule").addEventListener("change", toggleOutletField);
         document.getElementById("pph-period").addEventListener("change", loadPphSummary);
         document.getElementById("btn-close-month-pph").addEventListener("click", closeMonthPph);
         document.getElementById("btn-deposit-pph").addEventListener("click", depositPph);

@@ -7,8 +7,7 @@ app/services/balance_sheet_service.py's module docstring for the
 
 from datetime import datetime
 
-from app.models.db_models import Outlet
-from app.services.balance_sheet_service import get_balance_sheet, get_kas_per_outlet, get_profit_loss
+from app.services.balance_sheet_service import get_balance_sheet, get_profit_loss
 from app.services.chart_of_accounts_service import seed_accounts
 from app.services.journal_engine_service import post_journal
 from tests.conftest import as_tenant, make_owner
@@ -86,35 +85,6 @@ def test_balance_sheet_cumulative_includes_prior_months(db):
     neraca_august = get_balance_sheet(db, owner.id, datetime(2026, 8, 31))
     ekuitas = {row["nama_akun"]: row["saldo"] for row in neraca_august["ekuitas"]}
     assert ekuitas["Laba Ditahan (Berjalan)"] == 53_000  # June's activity still counted as of August
-
-
-def test_balance_sheet_1111_shows_per_outlet_breakdown(db):
-    owner = _seed(db)
-    db.add_all([
-        Outlet(kode_outlet="OUT-1", nama_outlet="Toko A"),
-        Outlet(kode_outlet="OUT-2", nama_outlet="Toko B"),
-    ])
-    db.commit()
-
-    _post(db, owner.id, "1111", "4114", 50_000, datetime(2026, 8, 1), outlet_id="OUT-1")
-    _post(db, owner.id, "1111", "4114", 30_000, datetime(2026, 8, 2), outlet_id="OUT-2")
-
-    result = get_balance_sheet(db, owner.id, datetime(2026, 8, 31))
-    kas_row = next(r for r in result["aset"] if r["kode_akun"] == "1111")
-
-    assert kas_row["saldo"] == 80_000
-    breakdown = {b["kode_outlet"]: b["saldo"] for b in kas_row["breakdown_outlet"]}
-    assert breakdown == {"OUT-1": 50_000, "OUT-2": 30_000}
-
-
-def test_get_kas_per_outlet_matches_balance_sheet_breakdown(db):
-    owner = _seed(db)
-    db.add(Outlet(kode_outlet="OUT-1", nama_outlet="Toko A"))
-    db.commit()
-    _post(db, owner.id, "1111", "4114", 20_000, datetime(2026, 8, 1), outlet_id="OUT-1")
-
-    breakdown = get_kas_per_outlet(db, owner.id, datetime(2026, 8, 31))
-    assert breakdown == [{"kode_outlet": "OUT-1", "nama_outlet": "Toko A", "saldo": 20_000}]
 
 
 def test_balance_sheet_endpoint_and_profit_loss_endpoint(client, db):

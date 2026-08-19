@@ -21,7 +21,6 @@ from app.routers import (
     auth,
     financial,
     inventory,
-    outlets,
     pages,
     platforms,
     pos,
@@ -31,7 +30,6 @@ from app.routers import (
 )
 from app.services.auth_service import seed_admin_user
 from app.services.journal_engine_service import seed_mapping_rules, seed_pos_payment_extension
-from app.services.outlet_service import seed_outlets
 
 # Demo-only fallback secret — set SESSION_SECRET_KEY in the environment for
 # anything beyond a local/disposable demo (Railway: set it as a variable).
@@ -55,7 +53,6 @@ async def lifespan(app: FastAPI):
         seed_admin_user(db)
         seed_mapping_rules(db)  # Transaction Mapping Matrix (Epic B) — global, shared by every tenant
         seed_pos_payment_extension(db)  # POS payment methods 33/34 (Epic C, PO-approved extension) — global
-        seed_outlets(db)  # Outlets (Epic H) — global, unaffected by Epic K (Epic L removes the model next)
     finally:
         db.close()
 
@@ -73,7 +70,6 @@ app.include_router(inventory.router)
 app.include_router(financial.router)
 app.include_router(reconciliation.router)
 app.include_router(platforms.router)
-app.include_router(outlets.router)
 app.include_router(pos.router)
 app.include_router(registration.router)
 app.include_router(superadmin.router)

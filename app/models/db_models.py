@@ -74,11 +74,6 @@ class OmniOrder(Base):
     gross_amount = Column(Float, default=0)
     net_amount = Column(Float, default=0)
 
-    # Nullable: existing/online orders never set this. Becomes required for
-    # Channel.OFFLINE_POS once Epic C adds that channel and enforces it in
-    # pos_service.py — not enforced here (Epic H only lays the foundation).
-    outlet_id = Column(String, ForeignKey("outlet.kode_outlet"), nullable=True)
-
     items = relationship("OmniOrderItem", back_populates="order", cascade="all, delete-orphan")
     fees = relationship("OmniOrderFee", back_populates="order", cascade="all, delete-orphan")
 
@@ -247,10 +242,6 @@ class Expense(Base):
     # payment-source pairs the mapping matrix actually defines for manual
     # expenses — required so every Expense produces exactly one JournalEntry.
     rule_no = Column(Integer, ForeignKey("transaction_mapping_rule.no"), nullable=False, default=32)
-    # Only rule #31 (Gaji Tunai) touches an is_outlet_scoped account (1111
-    # Kas di Tangan); nullable because the other 3 rules credit company-wide
-    # accounts (Kas di Bank) with no outlet concept.
-    outlet_id = Column(String, ForeignKey("outlet.kode_outlet"), nullable=True)
 
 
 # ---------------------------------------------------------------------------
@@ -285,8 +276,8 @@ class Settlement(Base):
 # Chart of Accounts (Epic A) — the account table double-entry bookkeeping is
 # built on. Seeded from docs/chart_of_accounts.csv (source of truth: the
 # business owner's own SAK EMKM account list), not hardcoded here. Journal
-# posting (Epic B), multi-outlet cash (Epic H), and the balance sheet (Epic F)
-# all read this table; nothing else in Epic A writes to it besides the seed.
+# posting (Epic B) and the balance sheet (Epic F) both read this table;
+# nothing else in Epic A writes to it besides the seed.
 # ---------------------------------------------------------------------------
 
 class Account(Base):
@@ -304,25 +295,6 @@ class Account(Base):
     # unique per owner since Epic K. Resolved in application code instead.
     parent_code = Column(String, nullable=True)
     is_header = Column(Boolean, default=False, nullable=False)
-    is_outlet_scoped = Column(Boolean, default=False, nullable=False)
-
-
-# ---------------------------------------------------------------------------
-# Multi-Outlet (Epic H) — one row per physical store. Referenced by
-# OmniOrder.outlet_id (required for offline POS orders once Epic C exists)
-# and, once Epic B's JournalEntry lands, by journal rows that touch
-# is_outlet_scoped accounts (1111 Kas di Tangan) so cash can be tracked and
-# reported per outlet before being consolidated in the Neraca (Epic F).
-# ---------------------------------------------------------------------------
-
-class Outlet(Base):
-    __tablename__ = "outlet"
-
-    kode_outlet = Column(String, primary_key=True)
-    nama_outlet = Column(String, nullable=False)
-    alamat = Column(Text, default="")
-    is_active = Column(Boolean, default=True, nullable=False)
-    created_time = Column(DateTime, default=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -372,8 +344,6 @@ class JournalEntry(Base):
     keterangan = Column(String, default="")
     status = Column(String, nullable=False, default="OTOMATIS")  # "OTOMATIS" | "MANUAL"
 
-    # Only set when kode_debet or kode_kredit is an is_outlet_scoped account (1111).
-    outlet_id = Column(String, ForeignKey("outlet.kode_outlet"), nullable=True)
     # Nearest matching rule, kept for traceability even when the posted accounts
     # were generalized beyond that rule's literal row (see journal_engine_service).
     rule_no = Column(Integer, ForeignKey("transaction_mapping_rule.no"), nullable=True)

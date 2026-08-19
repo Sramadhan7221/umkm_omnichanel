@@ -120,7 +120,6 @@ class CanonicalOrder:
     customer_ref: str                 # anonymized platform buyer id
     raw_status: str                   # original platform status string, for debugging/audit
     payout_batch_ref: Optional[str] = None
-    outlet_id: Optional[str] = None   # POS Kasir (Epic C) only — which physical outlet this nota was sold from
 
 
 @dataclass

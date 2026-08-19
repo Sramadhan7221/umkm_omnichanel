@@ -1,8 +1,7 @@
 """
 API routes for the POS Kasir page (Epic C): payment method list and nota
-creation/reprint. Outlet and product pickers reuse the existing
-/api/outlets and /api/inventory endpoints from the frontend directly —
-no duplicate listing endpoints here.
+creation/reprint. The product picker reuses the existing /api/inventory
+endpoint from the frontend directly — no duplicate listing endpoint here.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,7 +23,6 @@ class SaleItem(BaseModel):
 
 
 class SaleCreateRequest(BaseModel):
-    outlet_id: str
     rule_no: int
     customer_ref: str = ""
     items: list[SaleItem]
@@ -47,7 +45,7 @@ def payment_methods(db: Session = Depends(get_db)):
 def create_sale(body: SaleCreateRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     try:
         order = create_pos_sale(
-            db, owner_id, outlet_id=body.outlet_id, rule_no=body.rule_no,
+            db, owner_id, rule_no=body.rule_no,
             items=[item.model_dump() for item in body.items],
             customer_ref=body.customer_ref,
         )

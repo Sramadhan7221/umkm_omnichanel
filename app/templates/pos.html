@@ -5,7 +5,7 @@
     <meta charset="utf-8" />
     <title>Kasir POS | UMKM Omnichannel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Nota penjualan offline untuk outlet fisik." name="description" />
+    <meta content="Nota penjualan offline / kasir." name="description" />
 
     <link rel="shortcut icon" href="/static/images/favicon.ico">
 
@@ -132,12 +132,6 @@
                         </a>
                     </li>
 
-                    <li class="side-nav-item">
-                        <a href="/outlets" class="side-nav-link">
-                            <i class="ri-building-4-line"></i>
-                            <span> Outlet</span>
-                        </a>
-                    </li>
 
                     <li class="side-nav-item">
                         <a href="/team" class="side-nav-link">
@@ -162,24 +156,7 @@
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="card">
-                                <div class="card-body">
-                                    <label class="form-label">Outlet Aktif</label>
-                                    <select class="form-select w-auto d-inline-block" id="select-outlet">
-                                        <option value="">-- Pilih outlet --</option>
-                                    </select>
-                                    <p class="text-muted mb-0 mt-2" id="outlet-hint">
-                                        <i class="ri-information-line me-1"></i>
-                                        Pilih outlet aktif dulu sebelum bisa mulai input nota.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="pos-form-area" class="row d-none">
+                    <div id="pos-form-area" class="row">
                         <div class="col-lg-7">
                             <div class="card">
                                 <div class="card-header">
@@ -245,7 +222,6 @@
                                 <div class="card-body" id="nota-preview">
                                     <div class="text-center mb-3">
                                         <h4 class="mb-0" id="nota-toko-nama"></h4>
-                                        <p class="text-muted mb-0" id="nota-toko-alamat"></p>
                                         <h5 class="mt-3">NOTA PENJUALAN OFFLINE (POS KASIR)</h5>
                                     </div>
                                     <table class="table table-borderless table-sm mb-3">

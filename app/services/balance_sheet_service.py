@@ -20,7 +20,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from app.models.db_models import Account, JournalEntry, Outlet
+from app.models.db_models import Account, JournalEntry
 
 # Flips the credit-positive raw ledger balance into each kelompok_utama's
 # own natural-increase direction. Applying the GROUP's sign to every member
@@ -82,42 +82,6 @@ def _leaf_accounts(db: Session, owner_id: int, kelompok_utama: list[str]) -> lis
     )
 
 
-def _outlet_breakdown(db: Session, owner_id: int, kode_akun: str, end: datetime) -> list[dict]:
-    """Per-outlet split of an is_outlet_scoped account's balance — the
-    computation outlet_service.py's docstring has been pointing to since
-    Epic H ('wire that in once Epic B lands'). Outlet itself isn't owner-scoped
-    (Epic L removes the whole model next epic, not worth retrofitting now),
-    but the JournalEntry rows queried per outlet are."""
-    outlets = db.query(Outlet).order_by(Outlet.nama_outlet).all()
-    breakdown = []
-    for outlet in outlets:
-        debit_total = sum(
-            e.nominal for e in db.query(JournalEntry).filter(
-                JournalEntry.owner_id == owner_id,
-                JournalEntry.kode_debet == kode_akun, JournalEntry.outlet_id == outlet.kode_outlet,
-                JournalEntry.tanggal <= end,
-            ).all()
-        )
-        credit_total = sum(
-            e.nominal for e in db.query(JournalEntry).filter(
-                JournalEntry.owner_id == owner_id,
-                JournalEntry.kode_kredit == kode_akun, JournalEntry.outlet_id == outlet.kode_outlet,
-                JournalEntry.tanggal <= end,
-            ).all()
-        )
-        breakdown.append({
-            "kode_outlet": outlet.kode_outlet,
-            "nama_outlet": outlet.nama_outlet,
-            "saldo": debit_total - credit_total,  # 1111 is Aset (Debet-normal)
-        })
-    return breakdown
-
-
-def get_kas_per_outlet(db: Session, owner_id: int, as_of: datetime | None = None) -> list[dict]:
-    """Public entry point reused by /outlets ('Kas per Outlet' report)."""
-    return _outlet_breakdown(db, owner_id, "1111", as_of or datetime.utcnow())
-
-
 def _net_profit(db: Session, owner_id: int, start: datetime | None, end: datetime) -> float:
     """get_account_balance already returns a POSITIVE amount for both a
     Pendapatan account (revenue earned) and a Beban account (expense
@@ -165,10 +129,7 @@ def get_balance_sheet(db: Session, owner_id: int, as_of: datetime) -> dict:
         rows = []
         for account in _leaf_accounts(db, owner_id, [kelompok]):
             saldo = get_account_balance(db, account, end=as_of)
-            row = {"kode_akun": account.kode_akun, "nama_akun": account.nama_akun, "saldo": saldo}
-            if account.is_outlet_scoped:
-                row["breakdown_outlet"] = _outlet_breakdown(db, owner_id, account.kode_akun, as_of)
-            rows.append(row)
+            rows.append({"kode_akun": account.kode_akun, "nama_akun": account.nama_akun, "saldo": saldo})
         return rows
 
     aset = _section("Aset")

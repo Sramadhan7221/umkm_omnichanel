@@ -80,7 +80,6 @@ def upsert_from_canonical(db: Session, owner_id: int, order: CanonicalOrder) -> 
     db_order.updated_time = order.updated_time.replace(tzinfo=None)
     db_order.customer_ref = order.customer_ref
     db_order.payout_batch_ref = order.payout_batch_ref
-    db_order.outlet_id = order.outlet_id
     db_order.gross_amount = float(order.gross_amount)
     db_order.net_amount = float(order.net_amount)
 

@@ -260,6 +260,16 @@ Diverifikasi end-to-end lewat server nyata: registrasi+approve 2 Owner baru, mas
 
 ---
 
+**Epic L — selesai.** Model `Outlet` dihapus total, kolom `outlet_id` dihapus dari `OmniOrder`/`JournalEntry`/`Expense`, kolom `is_outlet_scoped` dihapus dari `Account` (model DAN `docs/chart_of_accounts.csv` — header CSV berhenti punya kolom itu). File terhapus total: `app/services/outlet_service.py`, `app/routers/outlets.py`, `app/templates/outlets.html`, `app/static/js/outlets.js`, `tests/test_outlets.py`; router `outlets` dan seed `seed_outlets` dihapus dari `app/main.py`; route halaman `/outlets` dihapus dari `pages.py` (sekarang 404).
+`pos_service.create_pos_sale` tidak lagi terima parameter `outlet_id`/validasi outlet aktif — nota langsung dibuat dari pemilihan barang. `get_receipt` (dipakai preview + cetak struk) sekarang mengembalikan `nama_toko` (dari `User.business_name` milik Owner, ditambahkan di Epic J) menggantikan `outlet_nama`/`outlet_alamat` — baris alamat dihapus total dari struk karena `User` tidak punya kolom alamat. `journal_engine_service.post_pos_sale_journal` tidak lagi resolve `outlet_id` dari `Account.is_outlet_scoped` (kolom itu sendiri sudah hilang). `post_journal`/`JournalEntry` kehilangan parameter/kolom `outlet_id` sepenuhnya — `post_expense_journal` menyesuaikan.
+`balance_sheet_service.py`: `_outlet_breakdown()` dan `get_kas_per_outlet()` dihapus, key `breakdown_outlet` hilang dari hasil `get_balance_sheet()` — akun 1111 Kas di Tangan sekarang baris biasa tanpa drill-down, sama seperti 1112/1113. `financial_service.add_expense` tidak lagi validasi/terima `outlet_id` (validasi itu bergantung pada `is_outlet_scoped` yang sudah dihapus). Endpoint `GET /api/financial/kas-per-outlet` dihapus; `GET /api/financial/expense-rules` tidak lagi mengembalikan field `outlet_required`.
+UI: link nav "Outlet" dihapus dari 11 template (9 lewat blok `<li>` multi-baris, 2 — `product_detail.html`/`product_form.html` — lewat format satu-baris). `pos.html`/`pos.js`: langkah "Outlet Aktif" dan gating `d-none` sebelum outlet dipilih dihapus total — form kasir langsung tampil begitu halaman dibuka; preview nota pakai `nama_toko` dari respons API. `financial.html`/`financial.js`: dropdown "Outlet (kas tunai)" dan seluruh logic `ruleRequiresOutlet`/`toggleOutletField`/`loadOutletOptions` dihapus (tidak ada lagi rule beban yang butuh outlet). `balance_sheet.html`/`balance_sheet.js`: `#kas-outlet-breakdown` dan `renderKasOutletBreakdown()` dihapus.
+Test: `tests/test_outlets.py` dihapus. 6 file test lain (`test_pos.py`, `test_journal_engine.py`, `test_balance_sheet.py`, `test_retur.py`, `test_auth.py`, `test_chart_of_accounts.py`) diupdate — hapus import `Outlet`, argumen `outlet_id`, dan assertion terkait; test yang isinya SELURUHNYA soal outlet (rejects-missing/inactive-outlet, per-outlet-breakdown, outlet-scoped-rule-validation) dihapus utuh, bukan cuma assertion-nya, karena tidak ada lagi perilaku lain tersisa untuk diuji. Total 87 test, semua lulus (`grep -ri outlet app/ tests/` bersih kecuali file font/CSS vendor `remixicon`/`icons.min.css` yang punya glyph ikon bernama "outlet" — soket listrik, bukan konsep bisnis, sengaja tidak disentuh).
+Diverifikasi end-to-end lewat server nyata (login Owner existing di demo DB lama — skema lama masih boot karena kolom yang dihapus cuma jadi kolom nganggur, bukan hambatan `create_all`): `GET /outlets` → 404, `/pos`/`/neraca`/`/financial` tidak lagi menyebut "outlet" sama sekali, nota kasir berhasil dibuat tanpa `outlet_id` di payload dan struknya menampilkan `nama_toko` (business_name Owner) bukan nama outlet, Neraca baris 1111 tidak punya `breakdown_outlet`, dan `GET /api/financial/expense-rules` tidak lagi punya field `outlet_required`.
+**Belum dikerjakan:** Epic M (Forgot Password) — lihat bagian di bawah, belum berubah dari sebelumnya.
+
+---
+
 ### EPIC M — Forgot Password via Email (SMTP Mailtrap)
 
 **Kenapa:** Permintaan eksplisit user. Tidak bergantung pada K/L — bisa dikerjakan kapan saja setelah Epic I selesai (butuh `User` dengan role sudah ada, tapi tidak butuh isolasi tenant maupun penghapusan outlet).
@@ -278,3 +288,14 @@ Diverifikasi end-to-end lewat server nyata: registrasi+approve 2 Owner baru, mas
 - Reset password dengan token yang sama dipakai dua kali → percobaan kedua ditolak.
 - Reset password dengan token kedaluwarsa (>30 menit) ditolak.
 - Dicatat jelas di README/env.example bahwa Mailtrap sandbox tidak mengirim ke inbox asli — supaya tidak dikira bug saat user asli tidak menerima email.
+
+---
+
+## Catatan Backlog — Audit Dokumentasi User Manual (2026-08-19)
+
+Ditambahkan lewat sesi penyusunan User Manual/materi pitching (bukan sesi coding). Audit kode aktual (`app/`) dibandingkan rencana CR1 di file ini menemukan 2 epic yang tertulis lengkap rencananya di atas TAPI belum ada baris "selesai" dan belum ada implementasinya di kode per tanggal ini — dicatat di sini supaya sesi coding berikutnya langsung tahu ini masih outstanding, bukan harus menebak ulang dari histori chat:
+
+- ~~**Epic L — Hapus Skema Multi-Outlet: BELUM DIKERJAKAN.**~~ **Selesai sesi 2026-08-19** — lihat baris "Epic L — selesai" di bagian EPIC L di atas untuk detail lengkap. Materi pitching/User Manual boleh mencantumkan ini sebagai fitur aktif (satu toko implisit per Owner), bukan lagi "akan disederhanakan".
+- **Epic M — Forgot Password via Email (SMTP Mailtrap): BELUM DIKERJAKAN.** Tidak ada model `PasswordResetToken`, tidak ada `app/services/email_service.py`, tidak ada endpoint `/api/auth/forgot-password`/`/api/auth/reset-password`, tidak ada halaman `forgot_password.html`/`reset_password.html`. Link "Lupa password?" juga belum ada di `login.html`. Task teknis lengkap ada di bagian "EPIC M" di atas — tidak berubah, masih valid untuk dikerjakan.
+
+Epic M masih dikeluarkan dari klaim fitur di User Manual/materi pitching yang sedang disusun — supaya materi pitching tidak menjanjikan sesuatu yang belum ada di produk.

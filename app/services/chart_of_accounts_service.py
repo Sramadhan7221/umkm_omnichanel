@@ -40,7 +40,6 @@ def seed_accounts(db: Session, owner_id: int) -> None:
                 saldo_normal=row["saldo_normal"],
                 parent_code=row["parent_code"] or None,
                 is_header=row["is_header"] == "true",
-                is_outlet_scoped=row["is_outlet_scoped"] == "true",
             ))
     db.commit()
 
@@ -64,6 +63,5 @@ def list_accounts_grouped(db: Session, owner_id: int) -> dict[str, list[dict]]:
             "saldo_normal": account.saldo_normal,
             "parent_code": account.parent_code,
             "is_header": account.is_header,
-            "is_outlet_scoped": account.is_outlet_scoped,
         })
     return grouped

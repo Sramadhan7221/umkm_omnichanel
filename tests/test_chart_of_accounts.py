@@ -7,7 +7,7 @@ Bagian 4 and docs/chart_of_accounts.csv (source of truth for account data).
 import csv
 
 from app.models.db_models import Account
-from app.services.chart_of_accounts_service import CSV_PATH, get_account, seed_accounts
+from app.services.chart_of_accounts_service import CSV_PATH, seed_accounts
 from tests.conftest import as_tenant, make_owner
 
 
@@ -33,7 +33,6 @@ def test_seed_creates_exact_rows_from_csv(db):
         assert account.saldo_normal == row["saldo_normal"]
         assert account.parent_code == (row["parent_code"] or None)
         assert account.is_header == (row["is_header"] == "true")
-        assert account.is_outlet_scoped == (row["is_outlet_scoped"] == "true")
 
 
 def test_accounts_endpoint_grouped_by_kelompok_utama(client, db):
@@ -55,14 +54,3 @@ def test_accounts_endpoint_grouped_by_kelompok_utama(client, db):
 
     total_returned = sum(len(v) for v in body.values())
     assert total_returned == len(csv_rows)
-
-
-def test_kas_di_tangan_is_outlet_scoped(db):
-    owner = make_owner(db)
-    seed_accounts(db, owner.id)
-
-    kas = get_account(db, owner.id, "1111")
-    assert kas.is_outlet_scoped is True
-
-    ewallet = get_account(db, owner.id, "1112")
-    assert ewallet.is_outlet_scoped is False

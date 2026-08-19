@@ -110,14 +110,6 @@ async def platforms(request: Request):
     return templates.TemplateResponse(request, "platforms.html", _user_context(request))
 
 
-@router.get("/outlets")
-async def outlets(request: Request):
-    guard = _guard(request, "owner")
-    if guard:
-        return guard
-    return templates.TemplateResponse(request, "outlets.html", _user_context(request))
-
-
 @router.get("/pos")
 async def pos(request: Request):
     guard = _guard(request, "owner", "admin")

@@ -12,9 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.db_models import Account
 from app.routers.auth import require_role
-from app.services.balance_sheet_service import get_balance_sheet, get_kas_per_outlet, get_profit_loss
+from app.services.balance_sheet_service import get_balance_sheet, get_profit_loss
 from app.services.chart_of_accounts_service import list_accounts_grouped
 from app.services.export_service import export_balance_sheet, export_journal, export_profit_loss
 from app.services.financial_service import (
@@ -43,7 +42,6 @@ class ExpenseCreateRequest(BaseModel):
     note: str = ""
     expense_date: str  # "YYYY-MM-DD"
     rule_no: int
-    outlet_id: str | None = None
 
 
 @router.get("/accounts")
@@ -80,7 +78,7 @@ def create_expense(
     try:
         expense = add_expense(
             db, owner_id, body.category, body.amount, body.note, expense_date,
-            rule_no=body.rule_no, outlet_id=body.outlet_id,
+            rule_no=body.rule_no,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -88,11 +86,8 @@ def create_expense(
 
 
 @router.get("/expense-rules")
-def expense_rules(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
+def expense_rules(db: Session = Depends(get_db)):
     rules = list_expense_rules(db)
-    kredit_accounts = {a.kode_akun: a for a in db.query(Account).filter(
-        Account.owner_id == owner_id, Account.kode_akun.in_({r.kode_kredit for r in rules})
-    ).all()}
     return [
         {
             "no": r.no,
@@ -101,10 +96,6 @@ def expense_rules(db: Session = Depends(get_db), owner_id: int = Depends(get_ten
             "nama_akun_debet": r.nama_akun_debet,
             "kode_kredit": r.kode_kredit,
             "nama_akun_kredit": r.nama_akun_kredit,
-            # Data-driven: whether picking this rule must also require an
-            # outlet, derived from the credit account's is_outlet_scoped
-            # flag (e.g. 1111 Kas di Tangan) instead of a hardcoded rule no.
-            "outlet_required": kredit_accounts[r.kode_kredit].is_outlet_scoped,
         }
         for r in rules
     ]
@@ -205,13 +196,6 @@ def balance_sheet_export(
         raise HTTPException(status_code=400, detail=str(exc))
     filename = f"neraca_{as_of_dt.date()}.{ext}"
     return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{filename}"'})
-
-
-@router.get("/kas-per-outlet")
-def kas_per_outlet(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
-    """Backs the /outlets page's real cash-per-outlet report — see
-    balance_sheet_service.get_kas_per_outlet."""
-    return get_kas_per_outlet(db, owner_id)
 
 
 @router.get("/journal")

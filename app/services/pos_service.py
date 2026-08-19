@@ -1,7 +1,7 @@
 """
-POS Kasir service (Epic C) — manual cash-register sales for physical
-outlets. Unlike the other 4 channels, a nota isn't synced from a platform
-adapter: the cashier picks items straight from Master Barang (Epic D,
+POS Kasir service (Epic C) — manual cash-register sales for the (single,
+implicit) physical store. Unlike the other 4 channels, a nota isn't synced
+from a platform adapter: the cashier picks items straight from Master Barang (Epic D,
 read-only pricing — Keputusan Scope 3) and the sale is completed
 immediately, no multi-day/multi-minute state machine.
 
@@ -22,7 +22,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.canonical import CanonicalOrder, Channel, FulfillmentType, OrderItem, OrderStatus
-from app.models.db_models import JournalEntry, OmniOrder, Outlet, TransactionMappingRule
+from app.models.db_models import JournalEntry, OmniOrder, TransactionMappingRule, User
 from app.services.inventory_service import deduct_stock_for_order, get_product
 from app.services.journal_engine_service import POS_PAYMENT_RULE_NOS, post_pos_sale_journal
 from app.services.order_service import get_order, upsert_from_canonical
@@ -41,15 +41,10 @@ def generate_nota_number(db: Session, owner_id: int) -> str:
 def create_pos_sale(
     db: Session,
     owner_id: int,
-    outlet_id: str,
     rule_no: int,
     items: list[dict],
     customer_ref: str = "",
 ) -> OmniOrder:
-    outlet = db.get(Outlet, outlet_id)
-    if outlet is None or not outlet.is_active:
-        raise ValueError("Pilih outlet aktif sebelum membuat nota")
-
     if rule_no not in POS_PAYMENT_RULE_NOS:
         raise ValueError(f"Metode pembayaran (rule_no={rule_no}) tidak dikenal")
 
@@ -89,7 +84,6 @@ def create_pos_sale(
         updated_time=now,
         customer_ref=customer_ref or "Umum",
         raw_status="completed",
-        outlet_id=outlet_id,
     )
 
     db_order = upsert_from_canonical(db, owner_id, canonical_order)
@@ -103,7 +97,7 @@ def get_receipt(db: Session, owner_id: int, platform_order_id: str) -> dict | No
     if order is None or order.channel != "Offline POS":
         return None
 
-    outlet = db.get(Outlet, order.outlet_id) if order.outlet_id else None
+    owner = db.get(User, owner_id)
     payment_entry = (
         db.query(JournalEntry)
         .filter(
@@ -119,8 +113,7 @@ def get_receipt(db: Session, owner_id: int, platform_order_id: str) -> dict | No
         "tanggal": order.order_time.isoformat(sep=" "),
         "nama_pelanggan": order.customer_ref,
         "metode_pembayaran": payment_rule.event_trigger if payment_rule else "-",
-        "outlet_nama": outlet.nama_outlet if outlet else "-",
-        "outlet_alamat": outlet.alamat if outlet else "",
+        "nama_toko": owner.business_name if owner else "-",
         "items": [
             {
                 "sku": i.sku, "nama_barang": i.item_name,

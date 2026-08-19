@@ -5,7 +5,7 @@ exact endpoint-by-endpoint permission mapping these tests check against.
 """
 
 from app.main import app
-from app.models.db_models import Outlet, Product, User
+from app.models.db_models import Product, User
 from app.routers.auth import _get_session_role
 from app.services.auth_service import hash_new_password
 from app.services.chart_of_accounts_service import seed_accounts
@@ -62,13 +62,12 @@ def test_admin_allowed_pos_sales(client, db):
     seed_accounts(db, owner.id)
     seed_mapping_rules(db)
     seed_pos_payment_extension(db)
-    db.add(Outlet(kode_outlet="OUT-1", nama_outlet="Toko Utama"))
     db.add(Product(owner_id=owner.id, sku="SKU-1", name="Kopi Susu", reference_price=18_000, cogs_price=8_000, stock_qty=10))
     db.commit()
 
     _as_role(client, "admin")
     response = client.post("/api/pos/sales", json={
-        "outlet_id": "OUT-1", "rule_no": 8, "items": [{"sku": "SKU-1", "qty": 1}],
+        "rule_no": 8, "items": [{"sku": "SKU-1", "qty": 1}],
     })
     assert response.status_code == 200
 

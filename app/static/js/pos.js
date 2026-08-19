@@ -1,8 +1,8 @@
 /**
  * Kasir POS page logic (Epic C).
  *
- * Talks to /api/outlets, /api/inventory (both existing, reused as-is) and
- * /api/pos/* (see app/routers/pos.py).
+ * Talks to /api/inventory (existing, reused as-is) and /api/pos/* (see
+ * app/routers/pos.py).
  */
 
 (function () {
@@ -14,19 +14,6 @@
     function formatRupiah(amount) {
         var n = Number(amount || 0);
         return "Rp " + n.toLocaleString("id-ID", { maximumFractionDigits: 0 });
-    }
-
-    function loadOutlets() {
-        return fetch("/api/outlets")
-            .then(function (res) { return res.json(); })
-            .then(function (outlets) {
-                var select = document.getElementById("select-outlet");
-                var active = outlets.filter(function (o) { return o.is_active; });
-                select.innerHTML = "<option value=''>-- Pilih outlet --</option>" +
-                    active.map(function (o) {
-                        return "<option value='" + o.kode_outlet + "'>" + o.nama_outlet + "</option>";
-                    }).join("");
-            });
     }
 
     function loadProducts() {
@@ -114,14 +101,9 @@
     }
 
     function saveNota() {
-        var outletId = document.getElementById("select-outlet").value;
         var ruleNo = parseInt(document.getElementById("select-payment").value, 10);
         var customerRef = document.getElementById("input-customer").value.trim();
 
-        if (!outletId) {
-            alert("Pilih outlet aktif dulu.");
-            return;
-        }
         if (!cart.length) {
             alert("Tambahkan minimal 1 barang ke nota.");
             return;
@@ -131,7 +113,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                outlet_id: outletId, rule_no: ruleNo, customer_ref: customerRef,
+                rule_no: ruleNo, customer_ref: customerRef,
                 items: cart.map(function (l) { return { sku: l.sku, qty: l.qty }; }),
             }),
         })
@@ -148,8 +130,7 @@
     }
 
     function renderReceipt(receipt) {
-        document.getElementById("nota-toko-nama").textContent = receipt.outlet_nama;
-        document.getElementById("nota-toko-alamat").textContent = receipt.outlet_alamat;
+        document.getElementById("nota-toko-nama").textContent = receipt.nama_toko;
         document.getElementById("nota-no").textContent = receipt.no_nota;
         document.getElementById("nota-customer").textContent = receipt.nama_pelanggan;
         document.getElementById("nota-tanggal").textContent = receipt.tanggal;
@@ -165,21 +146,13 @@
         document.getElementById("nota-preview-row").classList.remove("d-none");
     }
 
-    function onOutletChange() {
-        var hasOutlet = !!document.getElementById("select-outlet").value;
-        document.getElementById("pos-form-area").classList.toggle("d-none", !hasOutlet);
-        document.getElementById("outlet-hint").classList.toggle("d-none", hasOutlet);
-    }
-
     document.addEventListener("DOMContentLoaded", function () {
         if (window.lucide) lucide.createIcons();
 
-        loadOutlets();
         loadProducts();
         loadPaymentMethods();
         renderCart();
 
-        document.getElementById("select-outlet").addEventListener("change", onOutletChange);
         document.getElementById("select-product").addEventListener("change", updateUnitPriceField);
         document.getElementById("btn-add-item").addEventListener("click", addItem);
         document.getElementById("btn-save-nota").addEventListener("click", saveNota);

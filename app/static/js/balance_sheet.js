@@ -27,21 +27,6 @@
             : "<tr><td colspan='3' class='text-muted'>Tidak ada akun.</td></tr>";
     }
 
-    function renderKasOutletBreakdown(asetRows) {
-        var kasRow = asetRows.find(function (r) { return r.kode_akun === "1111"; });
-        var container = document.getElementById("kas-outlet-breakdown");
-        if (!kasRow || !kasRow.breakdown_outlet || !kasRow.breakdown_outlet.length) {
-            container.innerHTML = "";
-            return;
-        }
-        container.innerHTML = "<p class='text-muted mb-1'>Rincian 1111 Kas di Tangan per outlet:</p>" +
-            "<table class='table table-sm mb-0'><tbody>" +
-            kasRow.breakdown_outlet.map(function (b) {
-                return "<tr><td>" + b.nama_outlet + "</td><td class='text-end'>" + formatRupiah(b.saldo) + "</td></tr>";
-            }).join("") +
-            "</tbody></table>";
-    }
-
     function loadBalanceSheet() {
         var asOf = document.getElementById("as-of-date").value || todayISO();
         return fetch("/api/financial/balance-sheet?as_of=" + asOf)
@@ -50,7 +35,6 @@
                 renderSection("aset-table", "total-aset", data.aset);
                 renderSection("kewajiban-table", "total-kewajiban", data.kewajiban);
                 renderSection("ekuitas-table", "total-ekuitas", data.ekuitas);
-                renderKasOutletBreakdown(data.aset);
 
                 document.getElementById("total-aset").textContent = formatRupiah(data.total_aset);
                 document.getElementById("total-kewajiban").textContent = formatRupiah(data.total_kewajiban);

@@ -153,7 +153,6 @@ def post_journal(
     keterangan: str,
     rule_no: int | None = None,
     status: str = "OTOMATIS",
-    outlet_id: str | None = None,
     order_id: str | None = None,
     settlement_id: str | None = None,
     expense_id: int | None = None,
@@ -176,7 +175,6 @@ def post_journal(
         sumber_dokumen=sumber_dokumen,
         keterangan=keterangan,
         status=status,
-        outlet_id=outlet_id,
         rule_no=rule_no,
         order_id=order_id,
         settlement_id=settlement_id,
@@ -309,20 +307,15 @@ def post_retur_stock_recovery_journal(db: Session, order: OmniOrder) -> JournalE
 def post_pos_sale_journal(db: Session, order: OmniOrder, rule_no: int) -> list[JournalEntry]:
     """POS Kasir (Epic C) — unlike online orders, a nota has no intermediate
     receivable/fee step: the full nominal hits the payment account directly
-    (rules #8/#9/#33/#34 all have this shape). outlet_id is resolved from
-    the debit account's own is_outlet_scoped flag (data-driven — only rule
-    8's 1111 Kas di Tangan is outlet-scoped) rather than a hardcoded "1111"
-    check."""
+    (rules #8/#9/#33/#34 all have this shape)."""
     rule = db.get(TransactionMappingRule, rule_no)
-    akun_debet = get_account(db, order.owner_id, rule.kode_debet)
-    outlet_id = order.outlet_id if akun_debet.is_outlet_scoped else None
 
     entries = [post_journal(
         db, owner_id=order.owner_id, kode_debet=rule.kode_debet, kode_kredit=rule.kode_kredit,
         nominal=order.gross_amount,
         tanggal=order.order_time, sumber_dokumen=f"Nota {order.platform_order_id}",
         keterangan=f"{rule.event_trigger} - {order.platform_order_id}",
-        rule_no=rule_no, outlet_id=outlet_id, order_id=order.platform_order_id,
+        rule_no=rule_no, order_id=order.platform_order_id,
     )]
     entries.append(_post_cogs(db, order))
 
@@ -351,7 +344,7 @@ def post_expense_journal(db: Session, expense: Expense) -> JournalEntry | None:
         nominal=expense.amount,
         tanggal=expense.expense_date, sumber_dokumen=f"Biaya #{expense.id}",
         keterangan=expense.note or expense.category,
-        rule_no=expense.rule_no, status="MANUAL", outlet_id=expense.outlet_id, expense_id=expense.id,
+        rule_no=expense.rule_no, status="MANUAL", expense_id=expense.id,
     )
 
 
@@ -366,11 +359,7 @@ def list_journal_entries(db: Session, owner_id: int, start: datetime, end: datet
 
 # The rules an Expense can post through (see Expense.rule_no docstring in
 # db_models.py) — used to populate the "Jenis Beban" dropdown from data
-# instead of hardcoding labels/accounts in the template. Whether a rule
-# requires an outlet is NOT hardcoded here — it's derived per-rule from the
-# credit account's Account.is_outlet_scoped flag (see expense_rules() in
-# app/routers/financial.py), so adding a future outlet-scoped rule to this
-# list needs no other code change.
+# instead of hardcoding labels/accounts in the template.
 EXPENSE_RULE_NOS = [25, 26, 30, 31, 32]
 
 

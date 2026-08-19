@@ -8,7 +8,7 @@ docs/Analisis_Kebutuhan_Modul_Akuntansi_POS.pdf Bagian 4.
 
 from datetime import datetime
 
-from app.models.db_models import JournalEntry, OmniOrder, OmniOrderItem, Outlet, Product
+from app.models.db_models import JournalEntry, OmniOrder, OmniOrderItem, Product
 from app.services.chart_of_accounts_service import seed_accounts
 from app.services.inventory_service import get_product
 from app.services.journal_engine_service import (
@@ -112,12 +112,11 @@ def test_grabfood_retur_credits_food_delivery_receivable(db):
 
 def test_pos_retur_credits_the_original_nota_payment_account(db):
     owner = _seed(db)
-    db.add(Outlet(kode_outlet="OUT-1", nama_outlet="Toko Utama"))
     db.add(Product(owner_id=owner.id, sku="SKU-1", name="Kopi", reference_price=20_000, cogs_price=8_000, stock_qty=50))
     db.commit()
 
-    tunai_order = create_pos_sale(db, owner.id, outlet_id="OUT-1", rule_no=8, items=[{"sku": "SKU-1", "qty": 1}])
-    qris_order = create_pos_sale(db, owner.id, outlet_id="OUT-1", rule_no=9, items=[{"sku": "SKU-1", "qty": 1}])
+    tunai_order = create_pos_sale(db, owner.id, rule_no=8, items=[{"sku": "SKU-1", "qty": 1}])
+    qris_order = create_pos_sale(db, owner.id, rule_no=9, items=[{"sku": "SKU-1", "qty": 1}])
 
     process_retur(db, owner.id, tunai_order.platform_order_id, restore_stock=False)
     process_retur(db, owner.id, qris_order.platform_order_id, restore_stock=False)
