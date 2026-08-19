@@ -35,6 +35,23 @@ class User(Base):
 
 
 # ---------------------------------------------------------------------------
+# Forgot Password (Customer Request 1 Epic M) — single-use reset links sent
+# via email (app/services/email_service.py). `used_at` marks a token spent
+# without deleting the row, same "never delete User-adjacent rows" principle
+# Epic J applied to approve/reject/deactivate.
+# ---------------------------------------------------------------------------
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_token"
+
+    token = Column(String, primary_key=True)  # secrets.token_urlsafe(32) — long enough to be the PK directly
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    created_time = Column(DateTime, default=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
 # Platform management (Fase 5) — lets the user turn individual channels on
 # or off. Order generation (both the startup auto-seed and the manual "+1
 # per platform" sync) only touches platforms where is_active is True.

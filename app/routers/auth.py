@@ -1,14 +1,18 @@
 """
-Auth routes (Fase 5, extended Customer Request 1 Epic I): login page +
-login/logout API, role-based access control, and Owner-managed Admin
-accounts. Two access-gating layers other routers use:
-`is_logged_in`/`require_login_api` for "is anyone logged in" (unchanged from
-Fase 5), and `require_role(*roles)` on top of it for "is this specific role
-allowed here" — `is_logged_in` for page routes (checked inline, then
-RedirectResponse to /login), `require_login_api`/`require_role` as Depends
-targets for API routes (401/403, no redirect, since these are called via
-fetch()).
+Auth routes (Fase 5, extended Customer Request 1 Epic I + Epic M): login
+page + login/logout API, role-based access control, Owner-managed Admin
+accounts, and forgot/reset password (Epic M). Two access-gating layers
+other routers use: `is_logged_in`/`require_login_api` for "is anyone logged
+in" (unchanged from Fase 5), and `require_role(*roles)` on top of it for
+"is this specific role allowed here" — `is_logged_in` for page routes
+(checked inline, then RedirectResponse to /login), `require_login_api`/
+`require_role` as Depends targets for API routes (401/403, no redirect,
+since these are called via fetch()). Forgot/reset password routes need
+neither — they're the one auth flow that must work while logged out.
 """
+
+import secrets
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
@@ -17,8 +21,12 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.db_models import User
+from app.models.db_models import PasswordResetToken, User
+from app.services import email_service
 from app.services.auth_service import authenticate, hash_new_password
+
+RESET_TOKEN_TTL_MINUTES = 30
+_FORGOT_PASSWORD_GENERIC_MESSAGE = "Kalau email terdaftar, link reset kata sandi sudah dikirim."
 
 router = APIRouter(tags=["auth"])
 templates = Jinja2Templates(directory="app/templates")
@@ -71,6 +79,15 @@ class CreateAdminRequest(BaseModel):
     password: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password_baru: str
+
+
 @router.get("/login")
 async def login_page(request: Request):
     role = request.session.get("role")
@@ -107,6 +124,65 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
 @router.post("/api/auth/logout")
 def logout(request: Request):
     request.session.clear()
+    return {"ok": True}
+
+
+@router.get("/forgot-password")
+async def forgot_password_page(request: Request):
+    role = request.session.get("role")
+    if role == "owner":
+        return RedirectResponse(url="/order_inbox")
+    if role == "admin":
+        return RedirectResponse(url="/pos")
+    if role == "superadmin":
+        return RedirectResponse(url="/superadmin/dashboard")
+    return templates.TemplateResponse(request, "forgot_password.html")
+
+
+@router.post("/api/auth/forgot-password")
+def forgot_password(body: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """Always returns the same generic response regardless of whether the
+    email is registered — prevents user enumeration (verified explicitly in
+    tests/test_forgot_password.py, not just 'doesn't error')."""
+    user = db.query(User).filter(User.email == body.email.strip().lower()).first()
+    if user is not None and user.status == "approved" and user.is_active:
+        token = secrets.token_urlsafe(32)
+        db.add(PasswordResetToken(
+            token=token, user_id=user.id,
+            expires_at=datetime.utcnow() + timedelta(minutes=RESET_TOKEN_TTL_MINUTES),
+        ))
+        db.commit()
+        reset_link = f"{request.base_url}reset-password?token={token}"
+        email_service.send_email(
+            user.email, "Reset Kata Sandi - UMKM App",
+            f"Klik link berikut untuk reset kata sandi Anda (berlaku {RESET_TOKEN_TTL_MINUTES} menit): {reset_link}",
+        )
+    return {"ok": True, "message": _FORGOT_PASSWORD_GENERIC_MESSAGE}
+
+
+@router.get("/reset-password")
+async def reset_password_page(request: Request):
+    return templates.TemplateResponse(request, "reset_password.html")
+
+
+@router.post("/api/auth/reset-password")
+def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
+    reset_token = db.get(PasswordResetToken, body.token)
+    if reset_token is None:
+        raise HTTPException(status_code=400, detail="Token reset tidak valid")
+    if reset_token.used_at is not None:
+        raise HTTPException(status_code=400, detail="Token reset sudah pernah digunakan")
+    if reset_token.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Token reset sudah kedaluwarsa")
+    if len(body.password_baru) < 8:
+        raise HTTPException(status_code=400, detail="Kata sandi minimal 8 karakter")
+
+    user = db.get(User, reset_token.user_id)
+    salt_hex, hash_hex = hash_new_password(body.password_baru)
+    user.password_hash = hash_hex
+    user.password_salt = salt_hex
+    reset_token.used_at = datetime.utcnow()
+    db.commit()
     return {"ok": True}
 
 

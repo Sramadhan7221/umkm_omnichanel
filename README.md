@@ -142,3 +142,8 @@ docker compose up --build
 - By default the app uses SQLite and stores data in `app/data`.
 - If `SESSION_SECRET_KEY` is not set, the app uses a demo secret key.
 - The app listens on port `8000` by default.
+- Forgot-password emails are sent via a **Mailtrap sandbox** by default (see
+  `.env.example`'s `SMTP_*` variables) — this is a testing sandbox, so reset
+  links do NOT arrive in a real recipient's inbox, only in the Mailtrap web
+  UI. This is intentional, not a bug. Point `SMTP_*` at a real provider
+  before going live.
