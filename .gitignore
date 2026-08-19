@@ -23,6 +23,11 @@ dist/
 # Environment variables
 .env
 .env.*
+# ...except the committed template itself (Customer Request 2 Epic N relies
+# on this being trackable so anyone cloning the repo sees which variables
+# they need to fill in — the .env.* pattern above would otherwise silently
+# swallow it too).
+!.env.example
 
 # Logs
 *.log

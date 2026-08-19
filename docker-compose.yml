@@ -1,15 +1,54 @@
-# Local-only convenience compose file — Railway does NOT use this, it builds
-# straight from the Dockerfile. This is just for testing the exact same
-# image locally before pushing.
+# PostgreSQL + Docker Compose deployment (Customer Request 2 Epic N) — the
+# setup this project uses for a rented VPS. Copy .env.example to .env first
+# and fill in real values (see README.md's "Deploy dengan Docker Compose +
+# PostgreSQL" section) before running `docker compose up --build`.
+#
+# For a quick local SQLite-only run without Postgres at all, skip this file
+# and just run `uvicorn app.main:app --reload` (see README.md) — DATABASE_URL
+# stays unset and the app falls back to its SQLite default.
 services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # postgres:18+'s official image switched its recommended mount point
+      # from /var/lib/postgresql/data to /var/lib/postgresql itself (a
+      # version-specific subdirectory is created underneath) — mounting at
+      # the old .../data path makes the image refuse to start.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No `ports:` mapping on purpose — db is only reachable from the `web`
+    # service over the internal Docker network (service name "db"), not
+    # exposed on the VPS's public interface. Add a temporary port mapping
+    # here only when debugging locally, never in a deployed instance.
+
   web:
     build: .
+    restart: unless-stopped
     ports:
       - "8000:8000"
-    volumes:
-      - sqlite-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       PORT: 8000
+      # Host "db" is the Postgres service's name on the Docker Compose
+      # network above — not "localhost". See README.md for why.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS}
 
 volumes:
-  sqlite-data:
+  postgres-data:

@@ -23,7 +23,18 @@ owner_id (most direct-service-call tests, post-Epic-K) don't have to
 construct one by hand every time — pass its returned `.id` as `owner_id` to
 service calls, or override `_get_session_tenant_id` to match it for
 `client`-based tests exercising a specific tenant.
+
+Customer Request 2 Epic N's acceptance criteria require running this whole
+suite once against a real Postgres instance as a dialect smoke test (SQLite
+and Postgres don't always behave identically for constraints/types). The
+`db` fixture below honors DATABASE_URL when it's set to do this — point it
+at a throwaway Postgres (e.g. `docker run -p 5432:5432 postgres:18`, NOT the
+docker-compose.yml `db` service, which deliberately has no exposed port) and
+run `pytest` with that env var set. Default local/CI runs are unaffected:
+no DATABASE_URL means the in-memory SQLite engine below, exactly as before.
 """
+
+import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -39,25 +50,40 @@ from app.services.auth_service import hash_new_password
 from app.services.tenant_context import _get_session_tenant_id
 
 
+_POSTGRES_TEST_URL = os.environ.get("DATABASE_URL")
+
+
 @pytest.fixture()
 def db():
-    # StaticPool: a bare sqlite:///:memory: engine hands out a fresh, empty
-    # in-memory DB per connection checkout, which breaks as soon as the
-    # TestClient serves a request on a worker thread (its own checkout sees
-    # none of the tables create_all() just made). StaticPool pins everyone
-    # to the single connection that created the schema.
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    if _POSTGRES_TEST_URL:
+        # Postgres smoke-test mode (see module docstring). Unlike the
+        # in-memory SQLite engine below, this server persists between
+        # tests, so drop_all() both before (in case a previous run crashed
+        # mid-test) and after each test keeps every test isolated.
+        engine = create_engine(_POSTGRES_TEST_URL)
+        Base.metadata.drop_all(bind=engine)
+        Base.metadata.create_all(bind=engine)
+    else:
+        # StaticPool: a bare sqlite:///:memory: engine hands out a fresh,
+        # empty in-memory DB per connection checkout, which breaks as soon
+        # as the TestClient serves a request on a worker thread (its own
+        # checkout sees none of the tables create_all() just made).
+        # StaticPool pins everyone to the single connection that created
+        # the schema.
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     try:
         yield session
     finally:
         session.close()
+        if _POSTGRES_TEST_URL:
+            Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture()

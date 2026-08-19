@@ -26,14 +26,22 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 # ---------------------------------------------------------------------------
-# Lightweight schema migration — Base.metadata.create_all() only creates
-# tables that don't exist yet; it never adds a new column to a table that
-# was already created by an earlier version of this app. Without this, every
-# time a model gains a field, users with an existing local umkm_omni.db
-# would need to manually delete the file (which has already caused real
-# confusion once). This runs a handful of `ALTER TABLE ... ADD COLUMN`
-# statements for exactly the columns added after each table's first release,
-# skipping any that already exist. New tables still just need create_all().
+# Lightweight schema migration — superseded by Alembic (app/migrations/) as
+# of Customer Request 2 Epic N for the Postgres path, where schema changes
+# are applied via `alembic upgrade head` before the app starts (see
+# app/main.py's lifespan and Dockerfile's CMD). Kept here ONLY for the
+# SQLite dev-mode fallback (DATABASE_URL starting with "sqlite"), so a local
+# `uvicorn --reload` run against app/data/umkm_omni.db still auto-adds new
+# columns without requiring Alembic for quick iteration.
+#
+# Base.metadata.create_all() only creates tables that don't exist yet; it
+# never adds a new column to a table that was already created by an earlier
+# version of this app. Without this, every time a model gains a field,
+# users with an existing local umkm_omni.db would need to manually delete
+# the file (which has already caused real confusion once). This runs a
+# handful of `ALTER TABLE ... ADD COLUMN` statements for exactly the columns
+# added after each table's first release, skipping any that already exist.
+# New tables still just need create_all().
 # ---------------------------------------------------------------------------
 
 _COLUMN_MIGRATIONS = [

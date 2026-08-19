@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 
-from app.database import Base, SessionLocal, engine, run_lightweight_migrations
+from app.database import DATABASE_URL, Base, SessionLocal, engine, run_lightweight_migrations
 from app.routers import (
     api,
     auth,
@@ -39,8 +39,15 @@ SESSION_SECRET_KEY = os.environ.get("SESSION_SECRET_KEY", "umkm-omnichannel-demo
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    run_lightweight_migrations()  # add any new columns to tables that already existed
+    # Postgres (Customer Request 2 Epic N): schema is entirely Alembic's
+    # responsibility, applied via `alembic upgrade head` before this
+    # container's uvicorn process even starts (see Dockerfile's CMD) — the
+    # app itself never creates/alters tables against Postgres. SQLite
+    # dev-mode keeps the old auto-migrate-on-boot behavior for fast local
+    # iteration without needing Alembic (see app/database.py's comment).
+    if DATABASE_URL.startswith("sqlite"):
+        Base.metadata.create_all(bind=engine)
+        run_lightweight_migrations()  # add any new columns to tables that already existed
 
     # Global, tenant-independent seeds only (Customer Request 1 Epic K).
     # Everything that used to auto-seed a shared demo dataset here (Chart of

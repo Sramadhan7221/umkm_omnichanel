@@ -70,6 +70,13 @@ def generate_settlements(db: Session, owner_id: int) -> int:
             settlement_date=datetime.utcnow(),
         )
         db.add(settlement)
+        # Flush before posting the journal entry: JournalEntry.settlement_id
+        # is a real DB-enforced FK to settlement.settlement_id, and this
+        # session runs with autoflush=False, so without an explicit flush
+        # here the settlement row wouldn't exist yet when the journal
+        # insert runs. SQLite never caught this (it doesn't enforce FK
+        # constraints by default); Postgres does.
+        db.flush()
         post_settlement_journal(db, settlement)
         created += 1
 
