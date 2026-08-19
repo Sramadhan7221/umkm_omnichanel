@@ -10,7 +10,8 @@ lightweight process per app, which Frappe's architecture doesn't fit.
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
@@ -74,3 +75,27 @@ app.include_router(pos.router)
 app.include_router(registration.router)
 app.include_router(superadmin.router)
 app.include_router(pages.router)
+
+_DASHBOARD_BY_ROLE = {
+    "owner": "/order_inbox",
+    "admin": "/pos",
+    "superadmin": "/superadmin/dashboard",
+}
+
+
+@app.exception_handler(HTTPException)
+async def forbidden_page_handler(request: Request, exc: HTTPException):
+    """Page routes (app/routers/pages.py's _guard) raise a plain 403
+    HTTPException for a logged-in user with the wrong role — by default that
+    renders as a bare {"detail": ...} JSON body, which looks broken in a
+    browser. /api/* routes keep the default JSON handling since fetch()
+    callers (see app/static/js/notify.js error toasts) read exc.detail from
+    the JSON body."""
+    if exc.status_code == 403 and not request.url.path.startswith("/api/"):
+        role = request.session.get("role")
+        return pages.templates.TemplateResponse(
+            request, "403.html",
+            {"detail": exc.detail, "dashboard_url": _DASHBOARD_BY_ROLE.get(role, "/login")},
+            status_code=403,
+        )
+    return await http_exception_handler(request, exc)
