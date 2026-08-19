@@ -46,6 +46,13 @@ _COLUMN_MIGRATIONS = [
     ("expense", "rule_no", "INTEGER NOT NULL DEFAULT 32"),
 ]
 
+# Columns dropped from models after an earlier release — DBs created before
+# the drop still have them (NOT NULL, no default), which breaks inserts that
+# no longer supply a value. (table, column)
+_COLUMN_DROPS = [
+    ("account", "is_outlet_scoped"),  # leftover from the removed Outlet model
+]
+
 
 def run_lightweight_migrations() -> None:
     inspector = inspect(engine)
@@ -59,6 +66,14 @@ def run_lightweight_migrations() -> None:
             if column in existing_columns:
                 continue
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+
+        for table, column in _COLUMN_DROPS:
+            if table not in existing_tables:
+                continue
+            existing_columns = {col["name"] for col in inspector.get_columns(table)}
+            if column not in existing_columns:
+                continue
+            conn.execute(text(f"ALTER TABLE {table} DROP COLUMN {column}"))
 
 
 def get_db():
