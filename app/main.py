@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import http_exception_handler
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
@@ -30,6 +31,7 @@ from app.routers import (
     superadmin,
 )
 from app.services.auth_service import seed_admin_user
+from app.services.error_log_service import log_error
 from app.services.journal_engine_service import seed_mapping_rules, seed_pos_payment_extension
 
 # Demo-only fallback secret — set SESSION_SECRET_KEY in the environment for
@@ -71,6 +73,18 @@ app = FastAPI(title="UMKM Omnichannel", lifespan=lifespan)
 
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
+
+@app.middleware("http")
+async def cache_request_body(request: Request, call_next):
+    """Reads the body once, early, into request.state (backed by the ASGI
+    scope dict, so it survives Starlette reconstructing a bare Request for
+    the catch-all Exception handler below — see error_log_service.py's
+    _build_request_context). Safe to read here even for file uploads:
+    Starlette's Request caches this and replays it for any later
+    .form()/.json() call downstream, it doesn't consume the stream twice."""
+    request.state.raw_body = await request.body()
+    return await call_next(request)
+
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(auth.router)
 app.include_router(api.router)
@@ -106,3 +120,19 @@ async def forbidden_page_handler(request: Request, exc: HTTPException):
             status_code=403,
         )
     return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all for anything that isn't an HTTPException (those are already
+    handled above, or by FastAPI's default JSON handling) — i.e. actual bugs,
+    not expected validation failures (routers already catch those locally and
+    raise a 400/404 HTTPException, see app/services/error_log_service.py's
+    docstring). Logs full context to the error_log table (Customer Request 3
+    revisi) and always replies generically: this app has been multi-tenant
+    since CR1, so a stack trace reaching the client could leak another
+    tenant's internals."""
+    await log_error(exc, request)
+    if request.url.path.startswith("/api/"):
+        return JSONResponse(status_code=500, content={"detail": "Terjadi kesalahan pada server"})
+    return pages.templates.TemplateResponse(request, "500.html", {}, status_code=500)

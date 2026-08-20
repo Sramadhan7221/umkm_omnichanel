@@ -374,3 +374,19 @@ class JournalEntry(Base):
     expense_id = Column(Integer, ForeignKey("expense.id"), nullable=True)
 
     created_time = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+# ---------------------------------------------------------------------------
+# Error Logging (Customer Request 3 revisi — error_log_service.py). Operator
+# data about the application itself, not one Owner's business data, so this
+# is deliberately NOT owner_id-scoped (same rationale as PasswordResetToken).
+# ---------------------------------------------------------------------------
+
+class ErrorLog(Base):
+    __tablename__ = "error_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)  # queried by range, index is load-bearing
+    endpoint = Column(String)
+    request = Column(Text)  # JSON: {method, path, query_params, body, role, tenant_id, client_ip} — secrets redacted
+    exceptions = Column(Text)  # "<ExceptionType>: <message>\n<full traceback>"
