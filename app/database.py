@@ -11,13 +11,33 @@ this module is unaware of which DB engine is in use.
 import os
 from pathlib import Path
 
+from dotenv import dotenv_values
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parent.parent / "data"))
+# Lets a bare `uvicorn app.main:app --reload` (no shell env vars set by
+# hand) pick up DATABASE_URL/etc. from a local .env file — the same file
+# docker-compose.yml already reads for the Postgres+VPS path (Customer
+# Request 2 Epic N). Deliberately NOT `dotenv.load_dotenv()`: that mutates
+# the process-wide os.environ, which would leak DATABASE_URL into every
+# other module that reads os.environ directly — including
+# tests/conftest.py's Postgres-smoke-test opt-in, which relies on
+# DATABASE_URL being absent by default so plain `pytest` stays on fast
+# in-memory SQLite. `dotenv_values()` just returns a dict; nothing outside
+# this module's own _env() lookups below is affected. No .env ships inside
+# Docker images (see .dockerignore) or on Railway (env vars injected
+# directly by the platform), so this is a no-op there either way.
+_dotenv_values = dotenv_values()
+
+
+def _env(key: str, default: str) -> str:
+    return os.environ.get(key) or _dotenv_values.get(key) or default
+
+
+DATA_DIR = Path(_env("DATA_DIR", str(Path(__file__).resolve().parent.parent / "data")))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DATA_DIR / 'umkm_omni.db'}")
+DATABASE_URL = _env("DATABASE_URL", f"sqlite:///{DATA_DIR / 'umkm_omni.db'}")
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)

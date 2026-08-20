@@ -137,6 +137,57 @@ If you prefer Docker, build and run from the `umkm_omni_web` folder:
 docker compose up --build
 ```
 
+## Run lokal (`uvicorn --reload`) tersambung ke PostgreSQL
+
+Untuk menjalankan aplikasi dengan `uvicorn app.main:app --reload` biasa
+(tanpa Docker untuk `web`-nya) tapi datanya masuk ke PostgreSQL, bukan
+SQLite:
+
+1. Siapkan satu instance Postgres yang bisa diakses dari `localhost` —
+   paling gampang lewat container Docker terpisah (BUKAN service `db` di
+   `docker-compose.yml`, yang sengaja tidak expose port untuk deployment
+   VPS):
+
+```bash
+docker run -d --name umkm-postgres-dev \
+  -e POSTGRES_USER=umkm_dev -e POSTGRES_PASSWORD=umkm_dev_local -e POSTGRES_DB=umkm_omni \
+  -p 5433:5432 \
+  -v umkm_omni_web_dev_postgres_data:/var/lib/postgresql \
+  --restart unless-stopped postgres:18
+```
+
+   (Port host `5433`, bukan `5432` — kalau `5432` di komputer kamu sudah
+   dipakai proses Postgres lain, sesuaikan port ini bebas.)
+
+2. Buat file `.env` di root project (sudah masuk `.gitignore`, tidak pernah
+   ter-commit) berisi:
+
+```
+DATABASE_URL=postgresql+psycopg://umkm_dev:umkm_dev_local@localhost:5433/umkm_omni
+```
+
+   `app/database.py` memanggil `load_dotenv()` di awal, jadi `.env` ini
+   otomatis terbaca saat `uvicorn`/`alembic` dijalankan — tidak perlu
+   `export`/`set` env var manual di tiap sesi terminal.
+
+3. Buat skema (jalur Postgres tidak pakai `create_all()` otomatis seperti
+   SQLite — lihat bagian Alembic di Deploy VPS di bawah):
+
+```bash
+alembic upgrade head
+```
+
+4. Jalankan seperti biasa:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Data (Superadmin, dan semua Owner/produk/order yang dibuat lewat aplikasi)
+sekarang tersimpan di Postgres container `umkm-postgres-dev`, bukan di
+`app/data/umkm_omni.db`. Hapus/ganti `DATABASE_URL` di `.env` (atau hapus
+filenya) untuk kembali ke SQLite.
+
 ## Deploy dengan Docker Compose + PostgreSQL (VPS)
 
 `docker-compose.yml` di repo ini menjalankan dua service: `web` (aplikasi)
