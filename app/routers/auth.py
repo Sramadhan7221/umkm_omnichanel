@@ -156,7 +156,7 @@ def forgot_password(body: ForgotPasswordRequest, request: Request, db: Session =
         base_url = "https://si-lentera.com/"
         reset_link = f"{base_url}reset-password?token={token}"
         email_service.send_email(
-            user.email, "Reset Kata Sandi - UMKM App",
+            user.email, "Reset Kata Sandi - Aplikasi Si-Lentera",
             f"Klik link berikut untuk reset kata sandi Anda (berlaku {RESET_TOKEN_TTL_MINUTES} menit): {reset_link}",
         )
     return {"ok": True, "message": _FORGOT_PASSWORD_GENERIC_MESSAGE}
