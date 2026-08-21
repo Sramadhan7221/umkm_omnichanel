@@ -200,6 +200,8 @@ def create_admin(
     email = body.email.strip().lower()
     if db.query(User).filter(User.email == email).first() is not None:
         raise HTTPException(status_code=400, detail="Email sudah terdaftar")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Kata sandi minimal 8 karakter")
     salt_hex, hash_hex = hash_new_password(body.password)
     admin_user = User(
         email=email,

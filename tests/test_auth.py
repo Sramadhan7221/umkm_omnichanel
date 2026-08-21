@@ -84,6 +84,15 @@ def test_owner_creates_admin_account(client, db):
     assert created.owner_id == 1  # client fixture's require_login_api override returns user_id=1
 
 
+def test_owner_creates_admin_account_rejects_short_password(client, db):
+    response = client.post("/api/auth/create-admin", json={
+        "email": "admin2@example.com", "password": "short1",
+    })
+    assert response.status_code == 400
+    assert "minimal 8 karakter" in response.json()["detail"]
+    assert db.query(User).filter(User.email == "admin2@example.com").first() is None
+
+
 def test_login_rejects_pending_owner(client, db):
     _make_user(db, "pending@example.com", "owner", status="pending")
     response = client.post("/api/auth/login", json={"email": "pending@example.com", "password": "Qwertyz!1"})
