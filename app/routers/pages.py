@@ -110,7 +110,7 @@ async def reconciliation(request: Request):
 
 @router.get("/platforms")
 async def platforms(request: Request):
-    guard = _guard(request, "owner")
+    guard = _guard(request, "owner", "admin")
     if guard:
         return guard
     return templates.TemplateResponse(request, "platforms.html", _user_context(request))

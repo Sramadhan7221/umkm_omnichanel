@@ -21,12 +21,18 @@
         "gofood": "ri-restaurant-2-line",
     };
 
+    function canManagePlatforms() {
+        return window.CURRENT_USER_ROLE === "owner";
+    }
+
     function renderPlatforms(platforms) {
         var container = document.getElementById("platform-list");
+        var readOnly = !canManagePlatforms();
         container.innerHTML = platforms.map(function (p) {
             var badgeClass = CHANNEL_BADGE[p.code] || "bg-secondary";
             var icon = CHANNEL_ICON[p.code] || "ri-plug-line";
             var switchChecked = p.is_active ? "checked" : "";
+            var switchDisabled = readOnly ? "disabled" : "";
             var statusText = p.is_active ? "Aktif" : "Nonaktif";
             var statusClass = p.is_active ? "text-success" : "text-muted";
 
@@ -41,7 +47,7 @@
                 '<p class="text-muted mb-1">' + p.fulfillment_type + '</p>' +
                 '<p class="text-muted mb-3"><small>Fee platform: ' + (p.fee_rate != null ? p.fee_rate : 0) + '%</small></p>' +
                 '<div class="form-check form-switch d-flex justify-content-center align-items-center gap-2">' +
-                '<input class="form-check-input platform-toggle" type="checkbox" role="switch" data-code="' + p.code + '" ' + switchChecked + ' style="width:2.5em;height:1.3em;">' +
+                '<input class="form-check-input platform-toggle" type="checkbox" role="switch" data-code="' + p.code + '" ' + switchChecked + ' ' + switchDisabled + ' style="width:2.5em;height:1.3em;">' +
                 '<span class="' + statusClass + ' fw-semibold status-label">' + statusText + '</span>' +
                 '</div>' +
                 '</div>' +

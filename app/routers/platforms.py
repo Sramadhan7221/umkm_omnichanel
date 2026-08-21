@@ -12,14 +12,14 @@ from app.routers.auth import require_role
 from app.services.platform_service import list_platforms, set_active
 from app.services.tenant_context import get_tenant_id
 
-router = APIRouter(prefix="/api/platforms", tags=["platforms"], dependencies=[Depends(require_role("owner"))])
+router = APIRouter(prefix="/api/platforms", tags=["platforms"])
 
 
 class ToggleRequest(BaseModel):
     is_active: bool
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_role("owner", "admin"))])
 def list_all(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     platforms = list_platforms(db, owner_id)
     return [
@@ -34,7 +34,7 @@ def list_all(db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_i
     ]
 
 
-@router.post("/{code}/toggle")
+@router.post("/{code}/toggle", dependencies=[Depends(require_role("owner"))])
 def toggle(code: str, body: ToggleRequest, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     try:
         platform = set_active(db, owner_id, code, body.is_active)

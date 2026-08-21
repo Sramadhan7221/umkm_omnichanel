@@ -121,6 +121,8 @@
                         </a>
                     </li>
 
+                    {% endif %}
+
                     <li class="side-nav-title">Pengaturan</li>
 
                     <li class="side-nav-item">
@@ -130,7 +132,7 @@
                         </a>
                     </li>
 
-
+                    {% if role == "owner" %}
                     <li class="side-nav-item">
                         <a href="/team" class="side-nav-link">
                             <i class="ri-team-line"></i>
@@ -191,7 +193,10 @@
     <script src="/static/js/app.min.js"></script>
     <script src="/static/js/notify.js"></script>
 
-    <script>window.CURRENT_USER_EMAIL = {{ user_email | tojson }};</script>
+    <script>
+        window.CURRENT_USER_EMAIL = {{ user_email | tojson }};
+        window.CURRENT_USER_ROLE = {{ role | tojson }};
+    </script>
     <script src="/static/js/auth-common.js"></script>
     <script src="/static/js/platforms.js"></script>
 </body>

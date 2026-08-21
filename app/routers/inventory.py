@@ -29,8 +29,8 @@ from app.services.inventory_service import (
 from app.services.tenant_context import get_tenant_id
 
 # Owner + Admin baseline (Admin's granted "update stok" capability lives
-# here: list, adjust, movements, and the read-only detail lookup that backs
-# the product detail page). Create/edit/audit routes below add an extra
+# here: list, adjust, movements, the read-only detail lookup and audit log
+# that back the product detail page). Create/edit routes below add an extra
 # owner-only Depends on top — see Customer Request 1 Epic I Keputusan Scope
 # CR1 §5.
 router = APIRouter(
@@ -237,7 +237,7 @@ def edit_product(
     return _serialize_product_full(product)
 
 
-@router.get("/products/{sku}/audit", dependencies=[Depends(require_role("owner"))])
+@router.get("/products/{sku}/audit", dependencies=[Depends(require_role("owner", "admin"))])
 def product_audit_trail(sku: str, db: Session = Depends(get_db), owner_id: int = Depends(get_tenant_id)):
     """Edit history (name/price/description/image changes) for one SKU."""
     logs = get_audit_log(db, owner_id, sku)
