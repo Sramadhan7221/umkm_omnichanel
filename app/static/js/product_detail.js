@@ -141,7 +141,10 @@
                 renderImages(p.images || []);
                 renderPlatforms(p.mappings || []);
 
-                document.getElementById("btn-edit-product").setAttribute("href", "/inventory/" + encodeURIComponent(p.sku) + "/edit");
+                var btnEditProduct = document.getElementById("btn-edit-product");
+                if (btnEditProduct) {
+                    btnEditProduct.setAttribute("href", "/inventory/" + encodeURIComponent(p.sku) + "/edit");
+                }
                 document.getElementById("adjust-quantity").value = p.stock_qty;
             });
     }

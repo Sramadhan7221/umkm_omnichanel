@@ -149,9 +149,11 @@
                                     </div>
 
                                     <div class="d-flex gap-2 flex-wrap">
+                                        {% if role == "owner" %}
                                         <a href="#" id="btn-edit-product" class="btn btn-primary">
                                             <i class="ri-edit-line align-middle"></i> Edit Produk
                                         </a>
+                                        {% endif %}
                                         <button class="btn btn-outline-secondary" id="btn-quick-adjust">
                                             <i class="ri-settings-3-line align-middle"></i> Sesuaikan Stok
                                         </button>
