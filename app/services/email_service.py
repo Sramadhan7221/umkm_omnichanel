@@ -26,8 +26,17 @@ def send_email(to: str, subject: str, body: str) -> None:
     message["From"] = from_address
     message["To"] = to
 
-    with smtplib.SMTP(host, port) as server:
-        server.starttls()
-        if username:
-            server.login(username, password)
-        server.send_message(message)
+    if port == 465:
+        # Port 465 is implicit SSL: the server expects an encrypted
+        # handshake from the first byte, so plain SMTP + starttls() gets
+        # disconnected (SMTPServerDisconnected) before it can upgrade.
+        with smtplib.SMTP_SSL(host, port) as server:
+            if username:
+                server.login(username, password)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(host, port) as server:
+            server.starttls()
+            if username:
+                server.login(username, password)
+            server.send_message(message)
