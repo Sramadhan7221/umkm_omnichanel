@@ -16,6 +16,19 @@
     var pendingTable = null;
     var approvedTable = null;
 
+    /** Escape a value for safe insertion into an HTML string (text content or quoted attribute). */
+    function escapeHtml(value) {
+        return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+    }
+
+    /** Render a (possibly very long) business name as a truncating, tooltip-bearing cell so it can't blow up the table layout. */
+    function businessNameCell(name) {
+        var safe = escapeHtml(name);
+        return "<span class='d-inline-block text-truncate align-middle' style='max-width: 220px;' title='" + safe + "'>" + safe + "</span>";
+    }
+
     var DATATABLE_LANGUAGE = {
         search: "Cari:",
         lengthMenu: "Tampilkan _MENU_ data",
@@ -104,12 +117,13 @@
     function renderPending(owners) {
         var rows = owners.map(function (o) {
             var created = o.created_time ? o.created_time.substring(0, 10) : "-";
+            var safeName = escapeHtml(o.business_name);
             return [
-                o.business_name,
+                businessNameCell(o.business_name),
                 o.email,
                 created,
-                "<button class='btn btn-sm btn-success me-1 btn-approve' data-id='" + o.id + "' data-name='" + o.business_name + "'>Setujui</button>" +
-                "<button class='btn btn-sm btn-outline-danger btn-reject' data-id='" + o.id + "' data-name='" + o.business_name + "'>Tolak</button>",
+                "<button class='btn btn-sm btn-success me-1 btn-approve' data-id='" + o.id + "' data-name='" + safeName + "'>Setujui</button>" +
+                "<button class='btn btn-sm btn-outline-danger btn-reject' data-id='" + o.id + "' data-name='" + safeName + "'>Tolak</button>",
             ];
         });
 
@@ -144,10 +158,11 @@
             var statusBadge = o.is_active
                 ? "<span class='badge bg-success-subtle text-success'>Aktif</span>"
                 : "<span class='badge bg-secondary-subtle text-secondary'>Nonaktif</span>";
+            var safeName = escapeHtml(o.business_name);
             var actionBtn = o.is_active
-                ? "<button class='btn btn-sm btn-outline-danger btn-deactivate' data-id='" + o.id + "' data-name='" + o.business_name + "'>Nonaktifkan</button>"
-                : "<button class='btn btn-sm btn-outline-success btn-reactivate' data-id='" + o.id + "' data-name='" + o.business_name + "'>Aktifkan</button>";
-            return [o.business_name, o.email, statusBadge, actionBtn];
+                ? "<button class='btn btn-sm btn-outline-danger btn-deactivate' data-id='" + o.id + "' data-name='" + safeName + "'>Nonaktifkan</button>"
+                : "<button class='btn btn-sm btn-outline-success btn-reactivate' data-id='" + o.id + "' data-name='" + safeName + "'>Aktifkan</button>";
+            return [businessNameCell(o.business_name), o.email, statusBadge, actionBtn];
         });
 
         if (approvedTable) {

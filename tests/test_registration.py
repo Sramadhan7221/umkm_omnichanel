@@ -122,6 +122,23 @@ def test_deactivate_then_reactivate_owner(client, db):
     assert login_again.status_code == 200
 
 
+def test_register_accepts_long_unicode_and_html_special_char_business_name(client, db):
+    # QA regression: business_name with emoji/unicode or >200 chars must save
+    # without error, and the raw value should reach the API layer untouched
+    # (escaping for safe display is the JS layer's job, not the server's —
+    # see app/static/js/superadmin_dashboard.js's escapeHtml/businessNameCell).
+    tricky_name = "Toko \U0001f60a Émporium <script>alert(1)</script> " + ("A" * 250)
+    response = _register(client, business_name=tricky_name)
+    assert response.status_code == 200
+
+    user = db.query(User).filter(User.email == "owner@example.com").first()
+    assert user.business_name == tricky_name
+
+    _as_role(client, "superadmin")
+    pending = client.get("/api/superadmin/owners/pending").json()
+    assert pending[0]["business_name"] == tricky_name
+
+
 def test_non_superadmin_denied_superadmin_routes(client, db):
     _as_role(client, "owner")
     assert client.get("/api/superadmin/stats").status_code == 403
